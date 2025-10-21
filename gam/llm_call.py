@@ -41,7 +41,7 @@ class OpenRouterModel(BaseLLM):
         from openai import OpenAI
         self.client = OpenAI(
             base_url=base_url,
-            api_key='sk-zAPn76Ft7DIZcIiB9dj7etnlFOVdeH79jKtSD7To6KJ8khjt',
+            api_key='',
         )
         self.model = model
         self.max_retries = max_retries
