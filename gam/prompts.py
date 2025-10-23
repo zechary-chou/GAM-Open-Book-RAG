@@ -14,7 +14,12 @@ Integrate_PROMPT = """
     TEMP_MEMORY: {temp_memory}
 """
 
-Reflection_PROMPT = """
+InfoCheck_PROMPT = """
+    REQUEST: {request}
+    TEMP_MEMORY: {temp_memory}
+"""
+
+GenerateRequests_PROMPT = """
     REQUEST: {request}
     TEMP_MEMORY: {temp_memory}
 """

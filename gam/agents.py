@@ -16,8 +16,8 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 import re
 import json
 
-from prompts import MemoryAgent_PROMPT, Planning_PROMPT, Integrate_PROMPT, Reflection_PROMPT
-from json_schema import PLANNING_SCHEMA, INTEGRATE_SCHEMA, REFLECTION_SCHEMA
+from prompts import MemoryAgent_PROMPT, Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT
+from json_schema import PLANNING_SCHEMA, INTEGRATE_SCHEMA, INFO_CHECK_SCHEMA, GENERATE_REQUESTS_SCHEMA
 
 # =============================
 # Core data models
@@ -451,8 +451,7 @@ class ResearchAgent:
             if p:
                 out.append(Hit(page_index=idx, snippet=p.content[:200], source="page_index", meta={}))
         return out
-
-
+        
 
     # ---- reflection & summarization ----
     def _reflection(self, request: str, temp_memory: TempMemory) -> ReflectionDecision:
@@ -461,16 +460,38 @@ class ResearchAgent:
         - "if not, generate remaining information as a new request"  
         """
         
-        prompt = Reflection_PROMPT.format(request=request, temp_memory=temp_memory.content)
-
         try:
-            response = self.llm.generate(prompt=prompt, max_tokens=512, schema=REFLECTION_SCHEMA)
-            data = response.get("json") or json.loads(response["text"])
+            # Step 1: Check for completeness of information
+            check_prompt = InfoCheck_PROMPT.format(request=request, temp_memory=temp_memory.content)
+            check_response = self.llm.generate(prompt=check_prompt, max_tokens=256, schema=INFO_CHECK_SCHEMA)
+            check_data = check_response.get("json") or json.loads(check_response["text"])
+            
+            enough = check_data.get("enough", False)
+            
+            # If there is enough information, return directly
+            if enough:
+                return ReflectionDecision(enough=True, new_request=None)
+            
+            # Step 2: Generate a list of new requests
+            generate_prompt = GenerateRequests_PROMPT.format(
+                request=request, 
+                temp_memory=temp_memory.content
+            )
+            generate_response = self.llm.generate(prompt=generate_prompt, max_tokens=512, schema=GENERATE_REQUESTS_SCHEMA)
+            generate_data = generate_response.get("json") or json.loads(generate_response["text"])
+            
+            # Splices the list of requests into a string
+            new_requests_list = generate_data.get("new_requests", [])
+            new_request = None
+            
+            if new_requests_list and isinstance(new_requests_list, list):
+                new_request = " ".join(new_requests_list)
             
             return ReflectionDecision(
-                enough=data.get("enough", False),
-                new_request=data.get("new_request")
+                enough=False,
+                new_request=new_request
             )
+            
         except Exception as e:
             print(f"Error in reflection: {e}")
             return ReflectionDecision(enough=False, new_request=None)

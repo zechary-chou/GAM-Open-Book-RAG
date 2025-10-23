@@ -64,18 +64,27 @@ INTEGRATE_SCHEMA = {
   "required": ["content", "sources"]
 }
 
-
-
-REFLECTION_SCHEMA = {
+# 第一步：检查信息完备性
+INFO_CHECK_SCHEMA = {
   "type": "object",
   "additionalProperties": False,
   "properties": {
-    "enough": {"type": "boolean"},
-    "new_request": {
-      "type": ["string", "null"],
-      "description": "If insufficient, give a more specific request for a new search; if not, fill in null."
+    "enough": {"type": "boolean"}
+  },
+  "required": ["enough"]
+}
+
+# 第二步：生成新请求列表
+GENERATE_REQUESTS_SCHEMA = {
+  "type": "object",
+  "additionalProperties": False,
+  "properties": {
+    "new_requests": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "List of specific search requests to get missing information"
     }
   },
-  "required": ["enough", "new_request"]
+  "required": ["new_requests"]
 }
 
