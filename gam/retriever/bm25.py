@@ -23,10 +23,10 @@ class BM25Retriever(AbsRetriever):
                     'id': hits[i].docid,
                     'score': hits[i].score,
                     'content': Hit(
-                        page_index=int(hits[i].docid),
-                        snippet=self.pages[int(hits[i].docid)].header,
+                        page_index=self.pages[int(hits[i].docid)].page_id,
+                        snippet=self.pages[int(hits[i].docid)].content[:200],
                         source="keyword",
-                        meta=self.pages[int(hits[i].docid)].meta
+                        meta={"rank": i, "score": score[i]}
                     )
                 }
             cur_scores = sorted(tmp_results.items(), key=lambda x: x[1]['score'], reverse=True)[:top_k]
@@ -53,7 +53,7 @@ class BM25Retriever(AbsRetriever):
         for idx, page in enumerate(self.pages):
             doc_list.append({
                 "id": str(idx),
-                "content": page.content
+                "content": (page.header + ' ' + page.content).strip()
             })
         with open(os.path.join(index_dir, "documents", "documents.jsonl"), "w") as f:
             for d in doc_list:
@@ -75,6 +75,6 @@ class BM25Retriever(AbsRetriever):
             print("build BM25 index success")
         else:
             print(f"build BM25 index error :{exit_code}")
-        
+
     def update(self, page_store: InMemoryPageStore):
         self.build(page_store)

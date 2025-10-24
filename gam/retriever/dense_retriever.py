@@ -29,10 +29,18 @@ class DenseRetriever(AbsRetriever):
             batch_size=self.config.batch_size,
             max_length=self.config.max_length
         )
-        _, indices = search(self.index, queries_emb, top_k)
+        scores, indices = search(self.index, queries_emb, top_k)
         results = []
-        for indice in indices:
-            results.append([self.pages[i] for i in indice])
+        for score, indice in zip(scores, indices):
+            results.append(
+                [Hit(
+                    page_id=self.pages[i].page_id,
+                    snippet=self.pages[i].content[:200],
+                    source="vector",
+                    meta={"rank": i, "score": score[i]}
+                )
+                for i in range(len(score))]
+            )
         return results
 
     def load(self):
@@ -48,7 +56,7 @@ class DenseRetriever(AbsRetriever):
         os.makedirs(os.path.join(index_dir, "pages"), exist_ok=True)
 
         self.pages = page_store.list_all()
-        self.doc_emb = self.model.encode_corpus([e.content for e in self.pages])
+        self.doc_emb = self.model.encode_corpus([(page.header + ' ' + page.content).strip() for page in self.pages])
         self.index = faiss_index(self.doc_emb)
 
         index_dir = self.config.index_dir
