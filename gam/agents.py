@@ -99,6 +99,7 @@ class ResearchOutput:
 class MemoryStore(Protocol):
     def load(self) -> MemoryState: ...
     def save(self, state: MemoryState) -> None: ...
+    def add(self, abstract: str) -> None: ...
 
 
 class PageStore(Protocol):
@@ -136,6 +137,11 @@ class InMemoryMemoryStore:
 
     def save(self, state: MemoryState) -> None:
         self._state = state
+
+    def add(self, abstract: str) -> None:
+        """Add a new abstract to memory if it doesn't already exist."""
+        if abstract and abstract not in self._state.abstracts:
+            self._state.abstracts.append(abstract)
 
 
 class InMemoryPageStore:
@@ -198,10 +204,8 @@ class MemoryAgent:
         # (1) Decorate - this generates the abstract and decorated page
         abstract, header, decorated_new_page = self._decorate(message, state)
 
-        # (2) Merge into memory (only abstracts)
-        # simple uniqueness check
-        if abstract and abstract not in state.abstracts:
-            state.abstracts.append(abstract)
+        # (2) Add abstract to memory (with built-in uniqueness check)
+        self.memory_store.add(abstract)
 
         # (3) Persist page
         page = Page(header=header, content=message, meta={"decorated": decorated_new_page})
@@ -254,26 +258,27 @@ class ResearchAgent:
       - _integrate(search_results, temp_memory) -> TempMemory
       - _reflection(request, memory_state, temp_memory) -> ReflectionDecision
 
-    Note: memory_state should be MemoryState with ONLY abstracts list.
+    Note: Uses MemoryStore to dynamically load current memory state.
+    This allows ResearchAgent to access the latest memory updates from MemoryAgent.
     """
 
     def __init__(
         self,
         page_store: PageStore,
+        memory_store: MemoryStore | None = None,
         tool_registry: Optional[ToolRegistry] = None,
         retrievers: Optional[Dict[str, Retriever]] = None,
         llm: Any = None,  # 必须传入LLM实例
         max_iters: int = 3,
-        memory_state: Optional[MemoryState] = None,
     ) -> None:
         if llm is None:
             raise ValueError("LLM instance is required for ResearchAgent")
         self.page_store = page_store
+        self.memory_store = memory_store or InMemoryMemoryStore()
         self.tools = tool_registry
         self.retrievers = retrievers or {}
         self.llm = llm
         self.max_iters = max_iters
-        self.memory_state = memory_state or MemoryState()
 
         # Build indices upfront (if retrievers are provided)
         pages = self.page_store.list_all()
@@ -290,7 +295,9 @@ class ResearchAgent:
         next_request = request
 
         for step in range(self.max_iters):
-            plan = self._planning(next_request, self.memory_state)
+            # Load current memory state dynamically
+            memory_state = self.memory_store.load()
+            plan = self._planning(next_request, memory_state)
 
             temp = self._search(plan, temp, request)
 
