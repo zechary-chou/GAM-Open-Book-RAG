@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 
 from gam.generator.base import AbsGenerator
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 
 class OpenAIGenerator(AbsGenerator):
