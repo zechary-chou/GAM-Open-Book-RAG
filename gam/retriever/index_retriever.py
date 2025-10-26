@@ -7,28 +7,13 @@ from FlagEmbedding.abc.evaluation.utils import index as faiss_index
 from FlagEmbedding.abc.evaluation.utils import search
 
 from gam.retriever.base import AbsRetriever
-from gam.schemas import InMemoryPageStore, Hit
+from gam.schemas import InMemoryPageStore, Hit, Page
 
 
 class IndexRetriever(AbsRetriever):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.page_store = None
-
-    def search(self, query_indices: List[List[str]], top_k: int = 10) -> List[List[Hit]]:
-        hits: List[Hit] = []
-        for query_indice in query_indices:
-            for pid in query_indice:
-                p = self.page_store.get(pid)
-                if not p:
-                    continue
-                hits.append(Hit(
-                    page_id=p.page_id,
-                    snippet=p.content[:200],
-                    source="page_id",
-                    meta={}
-                ))
-        return hits
+        self.pages: List[Page] = []
 
     def load(self):
         index_dir = self.config.get("index_dir")
@@ -39,9 +24,33 @@ class IndexRetriever(AbsRetriever):
 
     def build(self, page_store: InMemoryPageStore):
         self.page_store = page_store
-
         self.page_store.save(os.path.join(self.config.get("index_dir"), "pages"))
-    
+
     def update(self, page_store: InMemoryPageStore):
         self.build(page_store)
+
+    def search(self, query_list: List[str], top_k: int = 10) -> List[List[Hit]]:
+        hits: List[Hit] = []
+        for query in query_list:
+            # 尝试将查询解析为页面索引
+            try:
+                page_index = [int(idx.strip()) for idx in query.split(',') if idx.strip().isdigit()]
+            except ValueError:
+                # 如果解析失败，跳过这个查询
+                continue
+                
+            for pid in page_index:
+                p = self.page_store.get(pid)
+                if not p:
+                    continue
+                hits.append(Hit(
+                    page_id=str(pid),  # 使用页面索引作为page_id
+                    snippet=p.content[:200],
+                    source="page_index",
+                    meta={}
+                ))
+        return [hits]  # 包装成 List[List[Hit]] 格式
+
+
+
 

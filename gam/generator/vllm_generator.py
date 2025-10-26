@@ -7,6 +7,7 @@ from transformers import AutoTokenizer
 from vllm.lora.request import LoRARequest
 
 from gam.generator.base import AbsGenerator
+from config import VLLMGeneratorConfig
 
 
 class VLLMGenerator(AbsGenerator):
@@ -179,3 +180,8 @@ class VLLMGenerator(AbsGenerator):
 
             results.append(out)
         return results
+    
+    @classmethod
+    def from_config(cls, config: VLLMGeneratorConfig) -> "VLLMGenerator":
+        """从配置类创建 VLLMGenerator 实例"""
+        return cls(config.__dict__)

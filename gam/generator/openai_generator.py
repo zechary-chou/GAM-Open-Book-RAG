@@ -11,6 +11,7 @@ from functools import partial
 
 from gam.generator.base import AbsGenerator
 from typing import Any, Dict, List, Optional
+from config import OpenAIGeneratorConfig
 
 
 class OpenAIGenerator(AbsGenerator):
@@ -30,7 +31,7 @@ class OpenAIGenerator(AbsGenerator):
         if self.api_key is not None:
             os.environ["OPENAI_API_KEY"] = self.api_key
         if self.base_url is not None:
-            os.environ["OPENAI_API_BASE"] = self.base_url
+            os.environ["OPENAI_BASE_URL"] = self.base_url
 
     def generate_single(
         self,
@@ -150,3 +151,8 @@ class OpenAIGenerator(AbsGenerator):
             results = list(tqdm(executor.map(generate_single_wrapper, messages_list), total=len(messages_list)))
 
         return results
+    
+    @classmethod
+    def from_config(cls, config: OpenAIGeneratorConfig) -> "OpenAIGenerator":
+        """从配置类创建 OpenAIGenerator 实例"""
+        return cls(config.__dict__)

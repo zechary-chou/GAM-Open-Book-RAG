@@ -21,6 +21,7 @@ from schemas import (
     Tool, ToolRegistry, InMemoryMemoryStore, InMemoryPageStore,
     PLANNING_SCHEMA, INTEGRATE_SCHEMA, INFO_CHECK_SCHEMA, GENERATE_REQUESTS_SCHEMA
 )
+from generator import AbsGenerator
 
 # =============================
 # MemoryAgent
@@ -39,14 +40,14 @@ class MemoryAgent:
         self,
         memory_store: MemoryStore | None = None,
         page_store: PageStore | None = None,
-        llm: Any = None,  # 必须传入LLM实例
+        generator: AbsGenerator | None = None,  # 必须传入Generator实例
         dir_path: Optional[str] = None,  # 新增：文件系统存储路径
     ) -> None:
-        if llm is None:
-            raise ValueError("LLM instance is required for MemoryAgent")
+        if generator is None:
+            raise ValueError("Generator instance is required for MemoryAgent")
         self.memory_store = memory_store or InMemoryMemoryStore(dir_path=dir_path)
         self.page_store = page_store or InMemoryPageStore(dir_path=dir_path)
-        self.llm = llm
+        self.generator = generator
 
     # ---- Public ----
     def memorize(self, message: str) -> MemoryUpdate:
@@ -93,7 +94,7 @@ class MemoryAgent:
         )
         
         try:
-            response = self.llm.generate(prompt=prompt, max_tokens=512)
+            response = self.generator.generate_single(prompt=prompt)
             abstract = response.get("text", "").strip()
         except Exception as e:
             print(f"Error generating abstract: {e}")
@@ -129,17 +130,17 @@ class ResearchAgent:
         memory_store: MemoryStore | None = None,
         tool_registry: Optional[ToolRegistry] = None,
         retrievers: Optional[Dict[str, Retriever]] = None,
-        llm: Any = None,  # 必须传入LLM实例
+        generator: AbsGenerator | None = None,  # 必须传入Generator实例
         max_iters: int = 3,
         dir_path: Optional[str] = None,  # 新增：文件系统存储路径
     ) -> None:
-        if llm is None:
-            raise ValueError("LLM instance is required for ResearchAgent")
+        if generator is None:
+            raise ValueError("Generator instance is required for ResearchAgent")
         self.page_store = page_store
         self.memory_store = memory_store or InMemoryMemoryStore(dir_path=dir_path)
         self.tools = tool_registry
         self.retrievers = retrievers or {}
-        self.llm = llm
+        self.generator = generator
         self.max_iters = max_iters
 
         # Build indices upfront (if retrievers are provided)
@@ -154,6 +155,9 @@ class ResearchAgent:
 
     # ---- Public ----
     def research(self, request: str) -> ResearchOutput:
+        # 在开始研究前，确保检索器索引是最新的
+        self._update_retrievers()
+        
         temp = Result()
         iterations: List[Dict[str, Any]] = []
         next_request = request
@@ -189,6 +193,24 @@ class ResearchAgent:
         }
         return ResearchOutput(integrated_memory=temp.content, raw_memory=raw)
 
+    def _update_retrievers(self):
+        """确保检索器索引是最新的"""
+        # 检查是否有新的页面需要更新索引
+        current_page_count = len(self.page_store.list_all())
+        
+        # 如果页面数量发生变化，更新所有检索器索引
+        if hasattr(self, '_last_page_count') and current_page_count != self._last_page_count:
+            print(f"检测到页面数量变化 ({self._last_page_count} -> {current_page_count})，更新检索器索引...")
+            for name, retriever in self.retrievers.items():
+                try:
+                    retriever.update(self.page_store)
+                    print(f"✅ Updated {name} retriever index")
+                except Exception as e:
+                    print(f"❌ Failed to update {name} retriever: {e}")
+        
+        # 更新页面计数
+        self._last_page_count = current_page_count
+
     # ---- Internal ----
     def _planning(self, request: str, memory_state: MemoryState) -> SearchPlan:
         """
@@ -209,14 +231,14 @@ class ResearchAgent:
         prompt = Planning_PROMPT.format(request=request, memory=memory_context)
 
         try:
-            response = self.llm.generate(prompt=prompt, max_tokens=500, schema=PLANNING_SCHEMA)
+            response = self.generator.generate_single(prompt=prompt, schema=PLANNING_SCHEMA)
             data = response.get("json") or json.loads(response["text"])
             return SearchPlan(
                 info_needs=data.get("info_needs", []),
                 tools=data.get("tools", []),
                 keyword_collection=data.get("keyword_collection", []),
                 vector_queries=data.get("vector_queries", []),
-                page_indices=data.get("page_indices", [])
+                page_index=data.get("page_index", [])
             )
         except Exception as e:
             print(f"Error in planning: {e}")
@@ -225,7 +247,7 @@ class ResearchAgent:
                 tools=[],
                 keyword_collection=[],
                 vector_queries=[],
-                page_indices=[]
+                page_index=[]
             )
     
 
@@ -261,8 +283,8 @@ class ResearchAgent:
                         hits.extend(vector_results)
                     
             elif tool == "page_index":
-                if plan.page_indices:
-                    page_results = self._search_by_page_index(plan.page_indices)
+                if plan.page_index:
+                    page_results = self._search_by_page_index(plan.page_index)
                     # Flatten the results if they come as List[List[Hit]]
                     if page_results and isinstance(page_results[0], list):
                         for result_list in page_results:
@@ -293,7 +315,7 @@ class ResearchAgent:
         prompt = Integrate_PROMPT.format(question=question, evidence_context=evidence_context, temp_memory=temp_memory.content)
 
         try:
-            response = self.llm.generate(prompt=prompt, max_tokens=800, schema=INTEGRATE_SCHEMA)
+            response = self.generator.generate_single(prompt=prompt, schema=INTEGRATE_SCHEMA)
             data = response.get("json") or json.loads(response["text"])
             
             return Result(
@@ -339,23 +361,21 @@ class ResearchAgent:
         # fallback: none
         return []
 
-    def _search_by_page_index(self, page_indices: List[int]) -> List[List[Hit]]:
+    def _search_by_page_index(self, page_index: List[int]) -> List[List[Hit]]:
         r = self.retrievers.get("page_index")
         if r is not None:
             try:
-                # IndexRetriever 期望 List[List[str]] 并返回 List[Hit]
-                # 将 page_indices 转换为字符串列表
-                query_indices = [[str(idx) for idx in page_indices]]
-                hits = r.search(query_indices, top_k=len(page_indices))
-                # 将 List[Hit] 包装成 List[List[Hit]]
-                return [hits] if hits else []
+                # IndexRetriever 现在期望 List[str]，将 page_index 转换为逗号分隔的字符串
+                query_string = ",".join([str(idx) for idx in page_index])
+                hits = r.search([query_string], top_k=len(page_index))
+                return hits if hits else []
             except Exception as e:
                 print(f"Error in page index search: {e}")
                 return []
         
         # fallback: 直接通过 page_store 获取页面
         out: List[Hit] = []
-        for idx in page_indices:
+        for idx in page_index:
             p = self.page_store.get(idx)
             if p:
                 out.append(Hit(page_id=str(idx), snippet=p.content[:200], source="page_index", meta={}))
@@ -372,7 +392,7 @@ class ResearchAgent:
         try:
             # Step 1: Check for completeness of information
             check_prompt = InfoCheck_PROMPT.format(request=request, temp_memory=temp_memory.content)
-            check_response = self.llm.generate(prompt=check_prompt, max_tokens=256, schema=INFO_CHECK_SCHEMA)
+            check_response = self.generator.generate_single(prompt=check_prompt, schema=INFO_CHECK_SCHEMA)
             check_data = check_response.get("json") or json.loads(check_response["text"])
             
             enough = check_data.get("enough", False)
@@ -386,7 +406,7 @@ class ResearchAgent:
                 request=request, 
                 temp_memory=temp_memory.content
             )
-            generate_response = self.llm.generate(prompt=generate_prompt, max_tokens=512, schema=GENERATE_REQUESTS_SCHEMA)
+            generate_response = self.generator.generate_single(prompt=generate_prompt, schema=GENERATE_REQUESTS_SCHEMA)
             generate_data = generate_response.get("json") or json.loads(generate_response["text"])
             
             # Splices the list of requests into a string

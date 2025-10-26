@@ -55,7 +55,7 @@ Return a JSON object with the following structure:
     "tools": ["list of tools to use (keyword, vector, page_index)"],
     "keyword_collection": ["list of keywords for text search"],
     "vector_queries": ["list of semantic search queries"],
-    "page_indices": [list of specific page indices to retrieve]
+    "page_index": [list of specific page indices to retrieve]
 }}
 """
 

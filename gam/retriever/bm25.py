@@ -1,80 +1,114 @@
-import os
-import json
+import os, json, subprocess, shutil
 from typing import Dict, Any, List
 from pyserini.search.lucene import LuceneSearcher
 
 from gam.retriever.base import AbsRetriever
-from gam.schemas import InMemoryPageStore, Hit
+from gam.schemas import InMemoryPageStore, Hit, Page
 
 
 class BM25Retriever(AbsRetriever):
+    """
+        关键词检索器 (BM25 / Lucene)
+        config 需要:
+        {
+            "index_dir": "xxx",   # 用来放 index/ 和 pages/
+            "threads": 4
+        }
+    """
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.pages = None
-        self.index = None
+        self.index_dir = self.config["index_dir"]
+        self.searcher: LuceneSearcher | None = None
+        self.pages: List[Page] = []
+
+    def _pages_dir(self):
+        return os.path.join(self.index_dir, "pages")
+
+    def _lucene_dir(self):
+        return os.path.join(self.index_dir, "index")
+
+    def _docs_dir(self):
+        return os.path.join(self.index_dir, "documents")
+
+    def load(self) -> None:
+        # 尝试从磁盘恢复
+        if not os.path.exists(self._lucene_dir()):
+            raise RuntimeError("BM25 index not found, need build() first.")
+        self.pages = InMemoryPageStore.load(self._pages_dir()).list_all()
+        self.searcher = LuceneSearcher(self._lucene_dir())
+
+    def build(self, page_store: InMemoryPageStore) -> None:
+        os.makedirs(self.index_dir, exist_ok=True)
+        os.makedirs(self._docs_dir(), exist_ok=True)
+
+        # 1. dump pages -> documents.jsonl (pyserini需要 id + contents)
+        pages = page_store.list_all()
+        docs_path = os.path.join(self._docs_dir(), "documents.jsonl")
+        with open(docs_path, "w", encoding="utf-8") as f:
+            for i, p in enumerate(pages):
+                text = (p.header + " " + p.content).strip()
+                json.dump({"id": str(i), "contents": text}, f, ensure_ascii=False)
+                f.write("\n")
+
+        # 2. 清理旧的 lucene index
+        if os.path.exists(self._lucene_dir()):
+            shutil.rmtree(self._lucene_dir())
+        os.makedirs(self._lucene_dir(), exist_ok=True)
+
+        # 3. 调 pyserini 构建 Lucene 索引
+        cmd = [
+            "python", "-m", "pyserini.index.lucene",
+            "--collection", "JsonCollection",
+            "--input", self._docs_dir(),
+            "--index", self._lucene_dir(),
+            "--generator", "DefaultLuceneDocumentGenerator",
+            "--threads", str(self.config.get("threads", 1)),
+            "--storePositions", "--storeDocvectors", "--storeRaw"
+        ]
+        subprocess.run(cmd, check=True)
+
+        # 4. 把 pages 也固化到磁盘，供 load() / search() 反查
+        page_store.save(self._pages_dir())
+
+        # 5. 更新内存镜像
+        self.pages = pages
+        self.searcher = LuceneSearcher(self._lucene_dir())
+
+    def update(self, page_store: InMemoryPageStore) -> None:
+        # Lucene 没有好用的“增量追加+可删改文档”的轻量接口（有但复杂）；
+        # 对现在这个原型我们可以直接全量重建，保持简单可靠。
+        self.build(page_store)
 
     def search(self, query_list: List[str], top_k: int = 10) -> List[List[Hit]]:
-        results = []
-        for query in query_list:
-            hits = self.index.search(query, k=top_k)
-            tmp_results = {}
-            for i in range(len(hits)):
-                tmp_results[hits[i].docid] = {
-                    'id': hits[i].docid,
-                    'score': hits[i].score,
-                    'content': Hit(
-                        page_index=self.pages[int(hits[i].docid)].page_id,
-                        snippet=self.pages[int(hits[i].docid)].content[:200],
+        if self.searcher is None:
+            # 容错：如果忘了 load/build
+            self.load()
+
+        results_all: List[List[Hit]] = []
+        for q in query_list:
+            q = q.strip()
+            if not q:
+                results_all.append([])
+                continue
+
+            hits_for_q = []
+            py_hits = self.searcher.search(q, k=top_k)
+            for rank, h in enumerate(py_hits):
+                # h.docid 是字符串 id
+                idx = int(h.docid)
+                if idx < 0 or idx >= len(self.pages):
+                    continue
+                page = self.pages[idx]
+                snippet = (page.header + " " + page.content)[:500]
+                hits_for_q.append(
+                    Hit(
+                        page_id=idx,
+                        snippet=snippet,
                         source="keyword",
-                        meta={"rank": i, "score": hits[i].score}
+                        score=float(h.score),
+                        meta={"rank": rank, "score": float(h.score)}
                     )
-                }
-            cur_scores = sorted(tmp_results.items(), key=lambda x: x[1]['score'], reverse=True)[:top_k]
-            results.append([e[1]['content'] for e in cur_scores])
-        return results
-
-    def load(self):
-        index_dir = self.config.get("index_dir")
-        if os.path.exists(os.path.join(index_dir, "index")):
-            try:
-                self.pages = InMemoryPageStore.load(os.path.join(index_dir, "pages")).list_all()
-                self.index = LuceneSearcher(os.path.join(index_dir, "index"))
-            except Exception as e:
-                print('cannot load index, error: ', e)
-
-    def build(self, page_store: InMemoryPageStore):
-        self.pages = page_store.list_all()
-        index_dir = self.config.get("index_dir")
-
-        os.makedirs(os.path.join(index_dir, "documents"), exist_ok=True)
-        os.makedirs(os.path.join(index_dir, "index"), exist_ok=True)
-        os.makedirs(os.path.join(index_dir, "pages"), exist_ok=True)
-        doc_list = []
-        for idx, page in enumerate(self.pages):
-            doc_list.append({
-                "id": str(idx),
-                "content": (page.header + ' ' + page.content).strip()
-            })
-        with open(os.path.join(index_dir, "documents", "documents.jsonl"), "w") as f:
-            for d in doc_list:
-                f.write(json.dumps(d) + '\n')
-
-        command = f"""python -m pyserini.index.lucene \
-            --collection JsonCollection \
-            --input {os.path.join(index_dir, "index")} \
-            --index {os.path.join(index_dir, "documents")} \
-            --generator DefaultLuceneDocumentGenerator \
-            --threads {self.config.get("threads", 1)} \
-            --storePositions --storeDocvectors --storeRaw"""
-
-        exit_code = os.system(command)
-        page_store.save(os.path.join(index_dir, "pages"))
-
-        if exit_code == 0:
-            self.index = LuceneSearcher(os.path.join(index_dir, "index"))
-            print("build BM25 index success")
-        else:
-            print(f"build BM25 index error :{exit_code}")
-
-    def update(self, page_store: InMemoryPageStore):
-        self.build(page_store)
+                )
+            results_all.append(hits_for_q)
+        return results_all

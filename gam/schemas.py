@@ -47,7 +47,7 @@ class SearchPlan(BaseModel):
     tools: List[str] = Field(default_factory=list, description="Tools to use for searching")
     keyword_collection: List[str] = Field(default_factory=list, description="Keywords to search for")
     vector_queries: List[str] = Field(default_factory=list, description="Semantic search queries")
-    page_indices: List[int] = Field(default_factory=list, description="Specific page indices to retrieve")
+    page_index: List[int] = Field(default_factory=list, description="Specific page indices to retrieve")
 
 class ToolResult(BaseModel):
     """Tool execution result"""
@@ -219,6 +219,24 @@ class InMemoryPageStore:
 
     def list_all(self) -> List[Page]:
         return list(self._pages)
+    
+    def save(self, dir_path: str) -> None:
+        """保存页面到指定目录"""
+        save_path = Path(dir_path)
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            pages_data = [page.model_dump() for page in self._pages]
+            with open(save_path / "pages.json", 'w', encoding='utf-8') as f:
+                json.dump(pages_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Warning: Failed to save pages to {save_path}: {e}")
+    
+    @classmethod
+    def load(cls, dir_path: str) -> "InMemoryPageStore":
+        """从指定目录加载页面"""
+        store = cls(dir_path=dir_path)
+        return store
 
 # =============================
 # Auto-generated JSON Schema
