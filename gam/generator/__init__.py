@@ -14,8 +14,10 @@ from __future__ import annotations
 
 from .base import AbsGenerator
 from .openai_generator import OpenAIGenerator
+from .vllm_generator import VLLMGenerator
 
 __all__ = [
     "AbsGenerator",
     "OpenAIGenerator", 
+    "VLLMGenerator",
 ]

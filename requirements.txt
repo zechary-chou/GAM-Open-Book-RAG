@@ -7,6 +7,22 @@ openai>=1.0.0
 tqdm>=4.65.0
 numpy>=1.23.0
 
-# Optional (for compatibility / expansion)
+# GAM Framework dependencies
+# - Core data models and validation
+pydantic>=2.0.0
+
+# - LLM Generators
+# OpenAI Generator (already covered by openai>=1.0.0)
+# VLLM Generator (optional, for local LLM inference)
+# vllm>=0.6.0  # Uncomment if using VLLMGenerator
+
+# - Retrievers
+# Dense Retriever (semantic search)
+FlagEmbedding>=1.2.0
+
+# BM25 Retriever (keyword search)
+pyserini>=0.22.0
+
+# Optional dependencies
 # unicodedata2>=15.1.0
 # requests>=2.31.0

@@ -85,15 +85,27 @@ class Result(BaseModel):
         schema["additionalProperties"] = False
         return schema
 
-class ReflectionDecision(BaseModel):
-    """Reflection decision"""
+class EnoughDecision(BaseModel):
+    """Decision on whether information is sufficient"""
     enough: bool = Field(..., description="Whether information is sufficient")
     
     @classmethod
     def model_json_schema(cls) -> Dict[str, Any]:
         """生成符合 OpenAI API 要求的 JSON Schema"""
         schema = super().model_json_schema()
-        # ReflectionDecision 只有 enough 字段是必需的
+        schema["required"] = ["enough"]
+        schema["additionalProperties"] = False
+        return schema
+
+class ReflectionDecision(BaseModel):
+    """Complete reflection decision with new request if information is insufficient"""
+    enough: bool = Field(..., description="Whether information is sufficient")
+    new_request: Optional[str] = Field(None, description="New search request if information is insufficient")
+    
+    @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """生成符合 OpenAI API 要求的 JSON Schema"""
+        schema = super().model_json_schema()
         schema["required"] = ["enough"]
         schema["additionalProperties"] = False
         return schema
@@ -236,6 +248,12 @@ class InMemoryPageStore:
         if self._dir_path:
             self.save(self._pages)
 
+    def get(self, index: int) -> Optional[Page]:
+        """根据索引获取页面"""
+        if 0 <= index < len(self._pages):
+            return self._pages[index]
+        return None
+
 # =============================
 # Auto-generated JSON Schema
 # =============================
@@ -243,5 +261,5 @@ class InMemoryPageStore:
 # JSON Schema for LLM calls
 PLANNING_SCHEMA = SearchPlan.model_json_schema()
 INTEGRATE_SCHEMA = Result.model_json_schema()
-INFO_CHECK_SCHEMA = ReflectionDecision.model_json_schema()
+INFO_CHECK_SCHEMA = EnoughDecision.model_json_schema()
 GENERATE_REQUESTS_SCHEMA = GenerateRequests.model_json_schema()

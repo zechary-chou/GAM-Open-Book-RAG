@@ -17,7 +17,7 @@ import json
 from gam.prompts import MemoryAgent_PROMPT, Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT
 from gam.schemas import (
     MemoryState, Page, MemoryUpdate, SearchPlan, Hit, Result, 
-    ReflectionDecision, ResearchOutput, MemoryStore, PageStore, Retriever, 
+    EnoughDecision, ReflectionDecision, ResearchOutput, MemoryStore, PageStore, Retriever, 
     ToolRegistry, InMemoryMemoryStore, InMemoryPageStore,
     PLANNING_SCHEMA, INTEGRATE_SCHEMA, INFO_CHECK_SCHEMA, GENERATE_REQUESTS_SCHEMA
 )
@@ -303,7 +303,12 @@ class ResearchAgent:
         evidence_text = []
         sources = []
         for i, hit in enumerate(hits, 1):
-            evidence_text.append(f"{i}. [{hit.source}] {hit.snippet}")
+            # Include page_id in evidence text if available
+            source_info = f"[{hit.source}]"
+            if hit.page_id:
+                source_info = f"[{hit.source}]({hit.page_id})"
+            evidence_text.append(f"{i}. {source_info} {hit.snippet}")
+            
             if hit.page_id:
                 sources.append(hit.page_id)
         
@@ -340,7 +345,7 @@ class ResearchAgent:
             q = query.lower()
             for i, p in enumerate(self.page_store.load()):
                 if q in p.content.lower() or q in p.header.lower():
-                    snippet = p.content[:200]
+                    snippet = p.content
                     query_hits.append(Hit(page_id=str(i), snippet=snippet, source="keyword", meta={}))
                     if len(query_hits) >= top_k:
                         break
@@ -375,7 +380,7 @@ class ResearchAgent:
         for idx in page_index:
             p = self.page_store.get(idx)
             if p:
-                out.append(Hit(page_id=str(idx), snippet=p.content[:200], source="page_index", meta={}))
+                out.append(Hit(page_id=str(idx), snippet=p.content, source="page_index", meta={}))
         return [out]  # 包装成 List[List[Hit]] 格式
         
 
@@ -406,7 +411,7 @@ class ResearchAgent:
             generate_response = self.generator.generate_single(prompt=generate_prompt, schema=GENERATE_REQUESTS_SCHEMA)
             generate_data = generate_response.get("json") or json.loads(generate_response["text"])
             
-            # Splices the list of requests into a string
+            # Get the list of requests and convert to string
             new_requests_list = generate_data.get("new_requests", [])
             new_request = None
             

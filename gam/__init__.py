@@ -55,6 +55,7 @@ __all__ = [
     # Generators
     "AbsGenerator",
     "OpenAIGenerator",
+    "VLLMGenerator",
     
     # Retrievers
     "AbsRetriever",

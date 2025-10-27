@@ -1,5 +1,7 @@
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union, Optional, Dict
+
 
 @dataclass
 class OpenAIGeneratorConfig:
@@ -15,17 +17,21 @@ class OpenAIGeneratorConfig:
     system_prompt: str | None = None
     timeout: float = 60.0
 
+
 @dataclass
 class VLLMGeneratorConfig:
-    """VLLM生成器配置"""
-    generate_model_path: str = "Qwen/Qwen2.5-7B-Instruct"
-    gpu_memory_utilization: float = 0.8
-    tensor_parallel_size: int | None = None
+    """
+    vLLM 生成器（本地 OpenAI 兼容端点 /v1/chat/completions）
+    注意：这是“客户端调用”所需的字段；与“启动 vLLM 服务器”的参数不同。
+    """
+    model_name: str = "Qwen2.5-7B-Instruct"   
+    api_key: Optional[str] = "empty"          
+    base_url: str = "http://localhost:8000/v1"
+    n: int = 1
     temperature: float = 0.0
     top_p: float = 1.0
     max_tokens: int = 300
-    stop: list[str] | None = None
-    repetition_penalty: float = 1.1
-    lora_path: str | None = None
-    n: int = 1
-    system_prompt: str | None = None
+    thread_count: Optional[int] = None
+    system_prompt: Optional[str] = None
+    timeout: float = 60.0
+

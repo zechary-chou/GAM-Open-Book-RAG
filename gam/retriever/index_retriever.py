@@ -14,13 +14,19 @@ class IndexRetriever(AbsRetriever):
     def load(self):
         index_dir = self.config.get("index_dir")
         try:
-            self.page_store = InMemoryPageStore.load(os.path.join(index_dir, "pages"))
+            # 正确创建 InMemoryPageStore 实例，会自动加载页面
+            self.page_store = InMemoryPageStore(dir_path=os.path.join(index_dir, "pages"))
         except Exception as e:
             print('cannot load index, error: ', e)
 
     def build(self, page_store: InMemoryPageStore):
-        self.page_store = page_store
-        self.page_store.save(os.path.join(self.config.get("index_dir"), "pages"))
+        # 创建一个新的 InMemoryPageStore 实例用于保存
+        target_path = os.path.join(self.config.get("index_dir"), "pages")
+        new_store = InMemoryPageStore(dir_path=target_path)
+        # 获取 page_store 中的所有页面并保存到新实例
+        pages = page_store._pages if hasattr(page_store, '_pages') else page_store.load()
+        new_store.save(pages)
+        self.page_store = new_store
 
     def update(self, page_store: InMemoryPageStore):
         self.build(page_store)

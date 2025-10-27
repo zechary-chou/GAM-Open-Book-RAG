@@ -1,36 +1,64 @@
-import torch
+# gam/generator/vllm_generator.py
+import time
 import json
+import os
+from typing import Any, Dict, List, Optional
 
-from typing import List, Union, Dict, Any, Optional
-from vllm import LLM, SamplingParams
-from transformers import AutoTokenizer
-from vllm.lora.request import LoRARequest
+from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
+from tqdm import tqdm
 
-from gam.generator.base import AbsGenerator
-from gam.config import VLLMGeneratorConfig
-
+from gam.generator.base import AbsGenerator  # <- 你的基类
+# 如果你有专门的 Config dataclass，也可像 OpenAIGenerator 一样 from_config
 
 class VLLMGenerator(AbsGenerator):
+    """
+    使用 vLLM 的 OpenAI 兼容端点，并通过 guided_json 做结构化输出。
+    与 OpenAIGenerator 的差异：不构造 response_format.json_schema，
+    而是在 extra_body 里放 guided_json / guided_grammar / guided_regex 等。
+    """
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.generate_model_path = config.get("generate_model_path", "Qwen/Qwen2.5-7B-Instruct")
-        self.gpu_memory_utilization = config.get("gpu_memory_utilization", 0.8)
-        self.tensor_parallel_size = config.get("tensor_parallel_size")
+        self.model_name = config.get("model_name", "qwen2.5-14b-instruct")
+        self.api_key = config.get("api_key", "empty")
+        self.base_url = config.get("base_url", "http://localhost:8000/v1")
+        self.n = config.get("n", 1)
         self.temperature = config.get("temperature", 0.0)
         self.top_p = config.get("top_p", 1.0)
-        self.max_tokens = config.get("max_tokens", 300)
-        self.stop = config.get("stop")
-        self.repetition_penalty = config.get("repetition_penalty", 1.1)
-        self.lora_path = config.get("lora_path")
-        self.n = config.get("n", 1)
+        self.max_tokens = config.get("max_tokens", 512)
+        self.thread_count = config.get("thread_count")
         self.system_prompt = config.get("system_prompt")
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(self.generate_model_path, trust_remote_code=True)
-        self.llm = LLM(model=self.generate_model_path, gpu_memory_utilization=self.gpu_memory_utilization,
-                       trust_remote_code=True,
-                       tensor_parallel_size=torch.cuda.device_count() if self.tensor_parallel_size is None else self.tensor_parallel_size,
-                       enable_lora=True, max_lora_rank=64)
-        self.model_name = self.generate_model_path.lower()
+        self.timeout = config.get("timeout", 60.0)
+
+        # 兼容 openai SDK 的环境变量（可选）
+        if self.api_key is not None:
+            os.environ["OPENAI_API_KEY"] = self.api_key
+        if self.base_url is not None:
+            os.environ["OPENAI_BASE_URL"] = self.base_url
+
+        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url.rstrip("/"))
+        # 某些 openai 版本支持 with_options
+        self._cclient = (
+            self._client.with_options(timeout=self.timeout)
+            if hasattr(self._client, "with_options") else self._client
+        )
+
+    def _build_messages(
+        self,
+        prompt: Optional[str],
+        messages: Optional[List[Dict[str, str]]],
+    ) -> List[Dict[str, str]]:
+        if (prompt is None) and (not messages):
+            raise ValueError("Either prompt or messages is required.")
+        if (prompt is not None) and messages:
+            raise ValueError("Pass either prompt or messages, not both.")
+        # 构造 messages
+        if messages is None:
+            messages = [{"role": "user", "content": prompt}]  # type: ignore[arg-type]
+        if self.system_prompt and not any(m.get("role") == "system" for m in messages):
+            messages = [{"role": "system", "content": self.system_prompt}] + messages
+        return messages
 
     def generate_single(
         self,
@@ -40,67 +68,57 @@ class VLLMGenerator(AbsGenerator):
         extra_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        极简 Chat 调用（VLLM）
+        极简 Chat 调用（vLLM OpenAI 兼容端点）
         - 二选一：prompt 文本 或 messages 列表
-        - 若传 schema：进行结构化输出（VLLM 需要特殊处理）
+        - 若传 schema：通过 extra_body={"guided_json": schema} 进行结构化输出
         返回：
           {"text": str, "json": dict|None, "response": dict}
         """
-        if (prompt is None) and (not messages):
-            raise ValueError("Either prompt or messages is required.")
-        if (prompt is not None) and messages:
-            raise ValueError("Pass either prompt or messages, not both.")
+        msgs = self._build_messages(prompt, messages)
 
-        # 构造 messages
-        if messages is None:
-            messages = [{"role": "user", "content": prompt}]  # type: ignore[arg-type]
-        if self.system_prompt and not any(m.get("role") == "system" for m in messages):
-            messages = [{"role": "system", "content": self.system_prompt}] + messages
-
-        sampling_params = SamplingParams(
-            temperature=self.temperature, 
-            top_p=self.top_p, 
-            max_tokens=self.max_tokens,
-            stop=self.stop or [], 
-            n=self.n,
-            repetition_penalty=self.repetition_penalty,
-            stop_token_ids=[128001, 128009] if 'llama' in self.model_name else None
-        )
-        lora_request = None
-        if self.lora_path is not None:
-            lora_request = LoRARequest("lora_adapter", 1, self.lora_path)
-
-        formatted_prompt = self.tokenizer.decode(
-            self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)[1:]
-        )
-        outputs = self.llm.generate([formatted_prompt], sampling_params, lora_request=lora_request)
-
-        # 获取生成的文本
-        if self.n > 1:
-            text = outputs[0].outputs[0].text.strip()
-            texts = [outputs[0].outputs[i].text.strip() for i in range(len(outputs[0].outputs))]
-        else:
-            text = outputs[0].outputs[0].text.strip()
-            texts = [text]
-
-        # 构造返回格式
-        out: Dict[str, Any] = {
-            "text": text, 
-            "json": None, 
-            "response": {
-                "outputs": [{"text": t} for t in texts],
-                "model": self.model_name,
-                "sampling_params": sampling_params.__dict__
-            }
-        }
-
-        # 如果有 schema，尝试解析 JSON
+        # vLLM 结构化输出的推荐用法：guided_json
+        # 也可换成 guided_grammar / guided_regex / guided_choice
+        extra_body: Dict[str, Any] = {}
         if schema is not None:
+            extra_body["guided_json"] = schema
+
+        params: Dict[str, Any] = {
+            "model": self.model_name,
+            "messages": msgs,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        if extra_params:
+            # 用户自定义的其他 vLLM 扩展参数（如 guided_choice 等）
+            params.update(extra_params)
+        if extra_body:
+            params["extra_body"] = {**params.get("extra_body", {}), **extra_body}
+
+        times = 0
+        while True:
+            try:
+                resp = self._cclient.chat.completions.create(**params)
+                break
+            except Exception as e:
+                print(str(e), "times:", times)
+                times += 1
+                if times > 3:  # 最多重试3次
+                    raise e
+                time.sleep(5)
+
+        text = ""
+        try:
+            text = resp.choices[0].message.content or ""
+        except Exception:
+            pass
+
+        out: Dict[str, Any] = {"text": text, "json": None, "response": resp.model_dump()}
+        if schema is not None:
+            # vLLM 的 guided_json 会尽量保证合法 JSON，但仍建议做一次解析
             try:
                 out["json"] = json.loads(text)
             except Exception:
                 out["json"] = None
-
         return out
 
     def generate_batch(
@@ -122,66 +140,24 @@ class VLLMGenerator(AbsGenerator):
         if prompts is not None:
             if isinstance(prompts, str):
                 prompts = [prompts]
-            # 转换为 messages_list 格式
-            messages_list = [[{"role": "user", "content": prompt}] for prompt in prompts]
+            messages_list = [[{"role": "user", "content": p}] for p in prompts]
 
-        sampling_params = SamplingParams(
-            temperature=self.temperature, 
-            top_p=self.top_p, 
-            max_tokens=self.max_tokens,
-            stop=self.stop or [], 
-            n=self.n,
-            repetition_penalty=self.repetition_penalty,
-            stop_token_ids=[128001, 128009] if 'llama' in self.model_name else None
-        )
-        lora_request = None
-        if self.lora_path is not None:
-            lora_request = LoRARequest("lora_adapter", 1, self.lora_path)
+        thread_count = self.thread_count or cpu_count()
 
-        # 为每个 messages 添加 system_prompt
-        formatted_messages_list = []
-        for messages in messages_list:
-            if self.system_prompt and not any(m.get("role") == "system" for m in messages):
-                messages = [{"role": "system", "content": self.system_prompt}] + messages
-            formatted_messages_list.append(messages)
+        def _worker(msgs):
+            return self.generate_single(
+                messages=msgs,
+                schema=schema,
+                extra_params=extra_params,
+            )
 
-        formatted_prompts = [self.tokenizer.decode(
-            self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)[1:]
-        ) for messages in formatted_messages_list]
-        
-        outputs = self.llm.generate(formatted_prompts, sampling_params, lora_request=lora_request)
-
-        results = []
-        for output in outputs:
-            if self.n > 1:
-                text = output.outputs[0].text.strip()
-                texts = [output.outputs[i].text.strip() for i in range(len(output.outputs))]
-            else:
-                text = output.outputs[0].text.strip()
-                texts = [text]
-
-            # 构造返回格式
-            out = {
-                "text": text, 
-                "json": None, 
-                "response": {
-                    "outputs": [{"text": t} for t in texts],
-                    "model": self.model_name,
-                    "sampling_params": sampling_params.__dict__
-                }
-            }
-
-            # 如果有 schema，尝试解析 JSON
-            if schema is not None:
-                try:
-                    out["json"] = json.loads(text)
-                except Exception:
-                    out["json"] = None
-
-            results.append(out)
+        with ThreadPoolExecutor(max_workers=thread_count) as executor:
+            results = list(tqdm(executor.map(_worker, messages_list), total=len(messages_list)))
         return results
-    
+
     @classmethod
-    def from_config(cls, config: VLLMGeneratorConfig) -> "VLLMGenerator":
-        """从配置类创建 VLLMGenerator 实例"""
-        return cls(config.__dict__)
+    def from_config(cls, config) -> "VLLMGenerator":
+        """与 OpenAIGenerator 的 from_config 对齐；config 可传 dict 或你的 dataclass"""
+        if hasattr(config, "__dict__"):
+            return cls(config.__dict__)
+        return cls(config)
