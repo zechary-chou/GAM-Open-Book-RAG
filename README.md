@@ -1,5 +1,14 @@
 # General Agentic Memory (GAM)
 
+<p align="center">
+  <a href="https://arxiv.org/abs/2511.18423" target="_blank">
+    <img src="https://img.shields.io/badge/arXiv-2511.18423-b31b1b?style=for-the-badge&logo=arxiv&logoColor=white" alt="arXiv">
+  </a>
+  <a href="https://huggingface.co/papers/2511.18423" target="_blank">
+    <img src="https://img.shields.io/badge/HuggingFace-Paper-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace">
+  </a>
+</p>
+
 A general memory system for agents, powered by deep-research
 
 [中文文档](README_CN.md) | English
@@ -8,10 +17,11 @@ A general memory system for agents, powered by deep-research
 
 **General Agentic Memory (GAM)** provides a next-generation memory framework for AI agents, combining long-term retention with dynamic reasoning. Following the Just-in-Time (JIT) principle, it preserves full contextual fidelity offline while performing deep research online to build adaptive, high-utility context. With its dual-agent architecture—Memorizer and Researcher—GAM integrates structured memory with iterative retrieval and reflection, achieving state-of-the-art performance across LoCoMo, HotpotQA, LongBench v2, and LongCodeBench benchmarks.
 
-- **Paper**: 
-- **Website**: 
+- **Paper**: <a href="[https://arxiv.org/abs/2511.18423](https://arxiv.org/abs/2511.18423)" target="_blank">[https://arxiv.org/abs/2511.18423](https://arxiv.org/abs/2511.18423)</a>
+- **Huggingface**: <a href="[https://huggingface.co/papers/2511.18423](https://huggingface.co/papers/2511.18423)" target="_blank">[https://huggingface.co/papers/2511.18423](https://huggingface.co/papers/2511.18423)</a>
+<!-- - **Website**: 
 - **Documentation**: 
-- **YouTube Video**: 
+- **YouTube Video**:  -->
 
 <span id='features'/>
 

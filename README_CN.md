@@ -1,5 +1,14 @@
 # General Agentic Memory (GAM)
 
+<p align="center">
+  <a href="https://arxiv.org/abs/2511.18423" target="_blank">
+    <img src="https://img.shields.io/badge/arXiv-2511.18423-b31b1b?style=for-the-badge&logo=arxiv&logoColor=white" alt="arXiv">
+  </a>
+  <a href="https://huggingface.co/papers/2511.18423" target="_blank">
+    <img src="https://img.shields.io/badge/HuggingFace-Paper-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace">
+  </a>
+</p>
+
 智能体的通用记忆系统，基于深度研究驱动
 
 [English](README.md) | 中文文档
@@ -8,10 +17,11 @@
 
 **General Agentic Memory (GAM)** 为 AI 智能体提供下一代记忆框架，将长期记忆与动态推理相结合。遵循即时(JIT)原则，在离线时保持完整的上下文保真度，在线时执行深度研究以构建自适应、高效用的上下文。通过其双智能体架构——记忆构建器和研究者——GAM 集成了结构化记忆与迭代检索和反思，在 LoCoMo、HotpotQA、LongBench v2 和 LongCodeBench 等基准测试中达到了最先进的性能。
 
-- **论文**: 
-- **网站**: 
+- **论文**: <a href="[https://arxiv.org/abs/2511.18423](https://arxiv.org/abs/2511.18423)" target="_blank">[https://arxiv.org/abs/2511.18423](https://arxiv.org/abs/2511.18423)</a>
+- **Huggingface**: <a href="[https://huggingface.co/papers/2511.18423](https://huggingface.co/papers/2511.18423)" target="_blank">[https://huggingface.co/papers/2511.18423](https://huggingface.co/papers/2511.18423)</a>
+<!-- - **网站**: 
 - **文档**: 
-- **YouTube 视频**: 
+- **YouTube 视频**:  -->
 
 <span id='features'/>
 
