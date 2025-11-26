@@ -116,7 +116,7 @@ general-agentic-memory/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/general-agentic-memory.git
+git clone https://github.com/VectorSpaceLab/general-agentic-memory.git
 cd general-agentic-memory
 
 # Install dependencies
@@ -290,12 +290,12 @@ More detailed documentation is coming soon 🚀. Check these resources in the me
 
 ### 🎯 Contact Us
 
-- GitHub Issues: [Report bugs or request features](https://github.com/your-username/general-agentic-memory/issues)
+- GitHub Issues: [Report bugs or request features](https://github.com/VectorSpaceLab/general-agentic-memory/issues)
 - Email: your-email@example.com
 
 ### 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-username/general-agentic-memory&type=Date)](https://star-history.com/#your-username/general-agentic-memory&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=VectorSpaceLab/general-agentic-memory&type=Date)](https://star-history.com/#VectorSpaceLab/general-agentic-memory&Date)
 
 ### 🤝 Contributing
 
