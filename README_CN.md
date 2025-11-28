@@ -293,7 +293,12 @@ python -m eval.run \
 **如果你觉得这个项目有用，请考虑引用我们的论文：**
 
 ```bibtex
-
+@article{yan2025general,
+  title={General Agentic Memory Via Deep Research},
+  author={Yan, BY and Li, Chaofan and Qian, Hongjin and Lu, Shuqi and Liu, Zheng},
+  journal={arXiv preprint arXiv:2511.18423},
+  year={2025}
+}
 ```
 
 <span id='community'/>

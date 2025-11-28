@@ -292,6 +292,12 @@ More detailed documentation is coming soon 🚀. Check these resources in the me
 **If you find this project useful, please consider citing our paper:**
 
 ```bibtex
+@article{yan2025general,
+  title={General Agentic Memory Via Deep Research},
+  author={Yan, BY and Li, Chaofan and Qian, Hongjin and Lu, Shuqi and Liu, Zheng},
+  journal={arXiv preprint arXiv:2511.18423},
+  year={2025}
+}
 ```
 
 <span id='community'/>
