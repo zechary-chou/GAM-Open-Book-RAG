@@ -6,13 +6,7 @@ GAM Model Usage Example
 展示如何使用不同的 LLM 模型（OpenAI API 或本地 VLLM）与 GAM 框架。
 """
 
-import sys
 import os
-
-# 添加项目根目录到 Python 路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
 
 from gam import (
     MemoryAgent,
@@ -108,9 +102,9 @@ def vllm_local_model_example():
         
         # 1. 配置 VLLM Generator
         gen_config = VLLMGeneratorConfig(
-            model_name="Qwen2.5-7B-Instruct",  # 本地模型路径
-            api_key="",
-            base_url="",
+            model_name="Qwen2.5-7B-Instruct",  # 本地模型名称
+            api_key="empty",  # VLLM 通常使用 "empty" 作为 API Key
+            base_url="http://localhost:8000/v1",  # vLLM 服务器地址
             temperature=0.7,
             max_tokens=512
         )
@@ -140,7 +134,7 @@ def vllm_local_model_example():
         for doc in documents:
             memory_agent.memorize(doc)
         
-        memory_state = memory_agent.load()
+        memory_state = memory_store.load()
         print(f"✅ 构建了 {len(memory_state.abstracts)} 个记忆摘要\n")
         
         return True

@@ -87,19 +87,10 @@ general-agentic-memory/
 │   ├── schemas/                  # 数据模型
 │   └── config/                   # 配置管理
 ├── eval/                         # 评估基准套件
-│   ├── __init__.py
-│   ├── run.py                   # 统一 CLI 入口
-│   ├── README.md                # 评估文档
-│   ├── QUICKSTART.md            # 快速开始指南
-│   ├── datasets/                # 数据集适配器
-│   │   ├── base.py             # 评估基类
-│   │   ├── hotpotqa.py         # HotpotQA 多跳问答
-│   │   ├── narrativeqa.py      # NarrativeQA 叙事问答
-│   │   ├── locomo.py           # LoCoMo 对话记忆
-│   │   └── ruler.py            # RULER 长上下文评估
-│   └── utils/                   # 评估工具
-│       ├── chunking.py         # 文本切分
-│       └── metrics.py          # 评估指标
+│   ├── hotpotqa_test.py        # HotpotQA 评估脚本
+│   ├── narrativeqa_test.py     # NarrativeQA 评估脚本
+│   ├── locomo_test.py          # LoCoMo 评估脚本
+│   └── ruler_test.py           # RULER 评估脚本
 ├── scripts/                      # Shell 脚本
 │   ├── eval_hotpotqa.sh
 │   ├── eval_narrativeqa.sh
@@ -275,59 +266,131 @@ print(f"研究摘要: {research_summary}")
 
 我们提供了完整的评估框架来复现论文中的实验结果。
 
+### 数据集准备
+
+由于数据集文件较大，它们**不会**存储在此仓库中。  
+请从原始来源下载它们，并按照以下方式放置在 `data/` 目录下：
+
+- **LoCoMo**
+
+  - 从以下地址下载 `locomo10.json`  
+    https://github.com/snap-research/locomo/blob/main/data/locomo10.json  
+  - 保存为：
+    - `data/locomo10.json`  
+
+- **HotpotQA**
+
+  - 从以下地址下载以下文件  
+    https://huggingface.co/datasets/BytedTsinghua-SIA/hotpotqa/tree/main  
+    - `eval_400.json`  
+    - `eval_1600.json`  
+    - `eval_3200.json`  
+  - 放置在：
+    - `data/hotpotqa/`  
+      (或通过 `--data-path` 传递要评估的确切文件)
+
+- **RULER**
+
+  - 从以下地址下载 `data` 文件夹  
+    https://huggingface.co/datasets/lighteval/RULER-131072-Qwen2.5-Instruct/tree/main  
+  - 放置在：
+    - `data/ruler/`  
+
+- **NarrativeQA**
+
+  - 从以下地址下载 `data` 文件夹  
+    https://huggingface.co/datasets/deepmind/narrativeqa/tree/main  
+  - 放置在：
+    - `data/narrativeqa/`
+
 ### 快速开始
 
 ```bash
 # 1. 准备数据集
 mkdir -p data
-# 将数据集放入 data/ 目录
+# 从上面的链接下载数据集，并按照建议的目录结构放置在 data/ 目录下
+bash scripts/download_data.sh
 
 # 2. 设置环境变量
 export OPENAI_API_KEY="your_api_key_here"
 
 # 3. 运行评估
+
 # HotpotQA
-bash scripts/eval_hotpotqa.sh --data-path data/hotpotqa.json
+bash scripts/eval_hotpotqa.sh
 
 # NarrativeQA
-bash scripts/eval_narrativeqa.sh --data-path narrativeqa --max-samples 100
+bash scripts/eval_narrativeqa.sh
 
 # LoCoMo
-bash scripts/eval_locomo.sh --data-path data/locomo.json
+bash scripts/eval_locomo.sh
 
 # RULER
-bash scripts/eval_ruler.sh --data-path data/ruler.jsonl --dataset-name niah_single_1
-
-# 或运行所有评估
-bash scripts/eval_all.sh
+bash scripts/eval_ruler.sh
 ```
 
-### 使用 Python CLI
+### 直接使用 Python 运行
+
+你也可以直接运行评估脚本：
 
 ```bash
-python -m eval.run \
-    --dataset hotpotqa \
-    --data-path data/hotpotqa.json \
-    --generator openai \
-    --model gpt-4 \
-    --retriever dense \
-    --max-samples 100
+# HotpotQA
+python eval/hotpotqa_test.py \
+    --data data/hotpotqa/eval_400.json \
+    --outdir ./results/hotpotqa \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
+
+# NarrativeQA
+python eval/narrativeqa_test.py \
+    --data-dir data/narrativeqa \
+    --split test \
+    --outdir ./results/narrativeqa \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
+
+# LoCoMo
+python eval/locomo_test.py \
+    --data data/locomo10.json \
+    --outdir ./results/locomo \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini
+
+# RULER
+python eval/ruler_test.py \
+    --data data/ruler/data/qa_1.jsonl \
+    --outdir ./results/ruler/qa_1 \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
 ```
-
-### 文档
-
-完整的评估文档：
-- [eval/README.md](./eval/README.md) - 评估框架指南
-- [eval/QUICKSTART.md](./eval/QUICKSTART.md) - 快速开始指南
 
 ### 支持的数据集
 
-| 数据集 | 任务类型 | 评估指标 | 文档 |
+| 数据集 | 任务类型 | 评估指标 | 脚本 |
 |---------|----------|---------|------|
-| **HotpotQA** | 多跳问答 | F1 | [查看](./eval/datasets/hotpotqa.py) |
-| **NarrativeQA** | 叙事问答 | F1 | [查看](./eval/datasets/narrativeqa.py) |
-| **LoCoMo** | 对话记忆 | F1, BLEU-1 | [查看](./eval/datasets/locomo.py) |
-| **RULER** | 长上下文 | Accuracy | [查看](./eval/datasets/ruler.py) |
+| **HotpotQA** | 多跳问答 | F1 | [eval/hotpotqa_test.py](./eval/hotpotqa_test.py) |
+| **NarrativeQA** | 叙事问答 | F1 | [eval/narrativeqa_test.py](./eval/narrativeqa_test.py) |
+| **LoCoMo** | 对话记忆 | F1, BLEU-1 | [eval/locomo_test.py](./eval/locomo_test.py) |
+| **RULER** | 长上下文 | Accuracy | [eval/ruler_test.py](./eval/ruler_test.py) |
 
 <span id='doc'/>
 
@@ -336,8 +399,7 @@ python -m eval.run \
 更详细的文档即将推出 🚀。同时可以查看这些资源：
 
 - [示例文档](./examples/quickstart/README.md) - 使用示例和教程
-- [评估指南](./eval/README.md) - 评估框架文档
-- [快速开始指南](./eval/QUICKSTART.md) - 评估快速开始
+- [评估脚本](./eval/) - 每个数据集的直接评估脚本
 
 <span id='cite'/>
 

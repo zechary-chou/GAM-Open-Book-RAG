@@ -67,19 +67,38 @@ python model_usage.py
 ### MemoryAgent（记忆代理）
 负责从文本中构建结构化记忆：
 ```python
-from gam import MemoryAgent, OpenAIGenerator, OpenAIGeneratorConfig
+import os
+from gam import (
+    MemoryAgent, 
+    OpenAIGenerator, 
+    OpenAIGeneratorConfig,
+    InMemoryMemoryStore,
+    InMemoryPageStore
+)
 
 # 1. 创建生成器
-gen_config = OpenAIGeneratorConfig(model="gpt-4o-mini")
-generator = OpenAIGenerator(gen_config.__dict__)
+gen_config = OpenAIGeneratorConfig(
+    model_name="gpt-4o-mini",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    temperature=0.3
+)
+generator = OpenAIGenerator.from_config(gen_config)
 
-# 2. 创建记忆代理
-memory_agent = MemoryAgent(generator=generator, ...)
+# 2. 创建存储
+memory_store = InMemoryMemoryStore()
+page_store = InMemoryPageStore()
 
-# 3. 记忆文本
+# 3. 创建记忆代理
+memory_agent = MemoryAgent(
+    generator=generator,
+    memory_store=memory_store,
+    page_store=page_store
+)
+
+# 4. 记忆文本
 memory_agent.memorize("你的文本内容")
 
-# 4. 获取记忆状态
+# 5. 获取记忆状态
 memory_state = memory_store.load()
 print(f"构建了 {len(memory_state.abstracts)} 个记忆摘要")
 ```
@@ -87,16 +106,58 @@ print(f"构建了 {len(memory_state.abstracts)} 个记忆摘要")
 ### ResearchAgent（研究代理）
 基于构建的记忆进行深度研究：
 ```python
-from gam import ResearchAgent, DenseRetriever
+import os
+from gam import (
+    ResearchAgent,
+    OpenAIGenerator,
+    OpenAIGeneratorConfig,
+    DenseRetriever,
+    DenseRetrieverConfig,
+    BM25Retriever,
+    BM25RetrieverConfig,
+    IndexRetriever,
+    IndexRetrieverConfig
+)
 
-# 1. 创建检索器
-retriever = DenseRetriever(config=..., memory_store=..., page_store=...)
+# 注意：假设你已经从前面的 MemoryAgent 示例中有了 memory_store 和 page_store
+# 如果需要创建新的 generator，可以这样做：
+gen_config = OpenAIGeneratorConfig(
+    model_name="gpt-4o-mini",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    temperature=0.3,
+    max_tokens=2048
+)
+generator = OpenAIGenerator.from_config(gen_config)
+
+# 1. 创建检索器（可以创建多个）
+retrievers = {}
+
+# Dense 检索器
+dense_config = DenseRetrieverConfig(
+    model_name="BAAI/bge-m3",
+    index_dir="./index/dense"
+)
+dense_retriever = DenseRetriever(dense_config.__dict__)
+dense_retriever.build(page_store)  # 构建索引
+retrievers["vector"] = dense_retriever
+
+# BM25 检索器
+bm25_config = BM25RetrieverConfig(index_dir="./index/bm25")
+bm25_retriever = BM25Retriever(bm25_config.__dict__)
+bm25_retriever.build(page_store)  # 构建索引
+retrievers["keyword"] = bm25_retriever
 
 # 2. 创建研究代理
-research_agent = ResearchAgent(generator=generator, retriever=retriever)
+research_agent = ResearchAgent(
+    generator=generator,
+    memory_store=memory_store,
+    page_store=page_store,
+    retrievers=retrievers,  # 传入检索器字典
+    max_iters=5  # 最大迭代次数
+)
 
 # 3. 进行研究
-result = research_agent.research(question="你的问题")
+result = research_agent.research("你的问题")
 
 # 4. 获取研究摘要
 research_summary = result.integrated_memory
@@ -111,7 +172,7 @@ print(f"迭代次数: {len(result.raw_memory.get('iterations', []))}")
 #### OpenAI Generator
 ```python
 OpenAIGeneratorConfig(
-    model="gpt-4o-mini",        # 模型名称
+    model_name="gpt-4o-mini",   # 模型名称（注意：是 model_name，不是 model）
     api_key="your-key",         # API Key
     base_url=None,              # 可选：自定义端点
     temperature=0.3,            # 温度参数
@@ -122,10 +183,11 @@ OpenAIGeneratorConfig(
 #### VLLM Generator（本地模型）
 ```python
 VLLMGeneratorConfig(
-    model_path="meta-llama/Llama-3-8B",  # 模型路径
-    temperature=0.7,                      # 温度参数
-    max_tokens=512,                       # 最大 token 数
-    gpu_memory_utilization=0.9,          # GPU 内存使用率
+    model_name="Qwen2.5-7B-Instruct",  # 模型名称（注意：是 model_name，不是 model_path）
+    api_key="empty",                    # API Key（通常设为 "empty"）
+    base_url="http://localhost:8000/v1", # vLLM 服务器地址
+    temperature=0.7,                    # 温度参数
+    max_tokens=512,                     # 最大 token 数
 )
 ```
 
@@ -134,15 +196,25 @@ VLLMGeneratorConfig(
 #### Dense Retriever（语义检索，推荐）
 ```python
 DenseRetrieverConfig(
-    model_path="BAAI/bge-base-en-v1.5",  # Embedding 模型
-    top_k=5,                              # 检索数量
+    model_name="BAAI/bge-m3",   # Embedding 模型名称（注意：是 model_name，不是 model_path）
+    index_dir="./index/dense",   # 索引存储目录
+    api_url=None,                # 可选：使用 API 模式时提供 API 地址
+    devices=["cuda:0"],          # 设备列表
 )
 ```
 
 #### BM25 Retriever（关键词检索）
 ```python
 BM25RetrieverConfig(
-    top_k=5,
+    index_dir="./index/bm25",    # 索引存储目录
+    threads=1,                   # 线程数
+)
+```
+
+#### Index Retriever（索引检索）
+```python
+IndexRetrieverConfig(
+    index_dir="./index/page_index",   # 索引存储目录
 )
 ```
 
@@ -194,7 +266,7 @@ export OPENAI_API_KEY="your-api-key"
 ### Q2: 内存不足（使用 VLLM 时）
 **A**: 尝试：
 - 使用更小的模型
-- 减少 `gpu_memory_utilization` 参数
+- 在启动 vLLM 服务器时减少 `gpu_memory_utilization` 参数
 - 使用量化模型
 
 ### Q3: 导入错误

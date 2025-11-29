@@ -1,83 +1,25 @@
 #!/bin/bash
-# LoCoMo 评估脚本
 
-set -e
+# Activate your conda/virtual environment if needed
+# source /path/to/your/conda/bin/activate your_env
 
-# 默认参数
-DATA_PATH="data/locomo.json"
-GENERATOR="openai"
-MODEL="gpt-4"
-RETRIEVER="index", "bm25", "dense"
-EMBEDDING_MODEL="BAAI/bge-base-en-v1.5"
-MAX_SAMPLES=""
-OUTPUT_DIR="outputs/locomo"
-API_KEY=""
-API_BASE=""
+# Set output directory
+outputdir=./results/locomo
 
-# 解析命令行参数
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --data-path)
-            DATA_PATH="$2"
-            shift 2
-            ;;
-        --generator)
-            GENERATOR="$2"
-            shift 2
-            ;;
-        --model)
-            MODEL="$2"
-            shift 2
-            ;;
-        --retriever)
-            RETRIEVER="$2"
-            shift 2
-            ;;
-        --api-key)
-            API_KEY="--api-key $2"
-            shift 2
-            ;;
-        --api-base)
-            API_BASE="--api-base $2"
-            shift 2
-            ;;
-        --max-samples)
-            MAX_SAMPLES="--max-samples $2"
-            shift 2
-            ;;
-        --output-dir)
-            OUTPUT_DIR="$2"
-            shift 2
-            ;;
-        *)
-            echo "未知参数: $1"
-            exit 1
-            ;;
-    esac
-done
+# Create output directory
+mkdir -p $outputdir
 
-echo "=========================================="
-echo "LoCoMo 评估"
-echo "=========================================="
-echo "数据路径: $DATA_PATH"
-echo "生成器: $GENERATOR"
-echo "模型: $MODEL"
-echo "检索器: $RETRIEVER"
-echo "输出目录: $OUTPUT_DIR"
-echo "=========================================="
-
-python -m eval.run \
-    --dataset locomo \
-    --data-path "$DATA_PATH" \
-    --generator "$GENERATOR" \
-    --model "$MODEL" \
-    --retriever "$RETRIEVER" \
-    --embedding-model "$EMBEDDING_MODEL" \
-    --output-dir "$OUTPUT_DIR" \
-    $API_KEY \
-    $API_BASE \
-    $MAX_SAMPLES
-
-echo ""
-echo "评估完成！结果已保存到: $OUTPUT_DIR"
-
+# Run LoCoMo evaluation
+python3 eval/locomo_test.py \
+    --data ./data/locomo/locomo10.json \
+    --outdir $outputdir \
+    --start-idx 0 \
+    --memory-api-key "your-openai-api-key" \
+    --memory-base-url "https://api.openai.com/v1" \
+    --memory-model "gpt-4o-mini" \
+    --research-api-key "your-openai-api-key" \
+    --research-base-url "https://api.openai.com/v1" \
+    --research-model "gpt-4o-mini" \
+    --working-api-key "your-openai-api-key" \
+    --working-base-url "https://api.openai.com/v1" \
+    --working-model "gpt-4o-mini"

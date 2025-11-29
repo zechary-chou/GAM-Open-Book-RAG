@@ -7,13 +7,7 @@ GAM Basic Usage Example
 演示了记忆构建、检索和研究的完整流程。
 """
 
-import sys
 import os
-
-# 添加项目根目录到 Python 路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
 
 from gam import (
     MemoryAgent,
@@ -203,7 +197,7 @@ def main():
         memory_agent, memory_store, page_store = basic_memory_example()
         
         # 2. 运行基于记忆的研究示例
-        research_result = research_example( memory_store, page_store)
+        research_result = research_example(memory_store, page_store)
         
         print("\n" + "=" * 60)
         print("✅ 示例运行完成！")

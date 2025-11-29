@@ -86,19 +86,10 @@ general-agentic-memory/
 │   ├── schemas/                  # Data models
 │   └── config/                   # Configuration management
 ├── eval/                         # Evaluation suite
-│   ├── __init__.py
-│   ├── run.py                   # Unified CLI entry
-│   ├── README.md                # Evaluation documentation
-│   ├── QUICKSTART.md            # Quick start guide
-│   ├── datasets/                # Dataset adapters
-│   │   ├── base.py             # Base evaluation class
-│   │   ├── hotpotqa.py         # HotpotQA multi-hop QA
-│   │   ├── narrativeqa.py      # NarrativeQA narrative QA
-│   │   ├── locomo.py           # LoCoMo conversation memory
-│   │   └── ruler.py            # RULER long-context eval
-│   └── utils/                   # Evaluation utilities
-│       ├── chunking.py         # Text chunking
-│       └── metrics.py          # Evaluation metrics
+│   ├── hotpotqa_test.py        # HotpotQA evaluation script
+│   ├── narrativeqa_test.py     # NarrativeQA evaluation script
+│   ├── locomo_test.py          # LoCoMo evaluation script
+│   └── ruler_test.py           # RULER evaluation script
 ├── scripts/                      # Shell scripts
 │   ├── eval_hotpotqa.sh
 │   ├── eval_narrativeqa.sh
@@ -276,59 +267,133 @@ For detailed examples and advanced usage:
 
 We provide a complete evaluation framework to reproduce the experimental results in the paper.
 
+### Datasets
+
+Because the datasets are large, they are **not** stored in this repository.  
+Please download them from the original sources and place them under the `data/` directory as follows:
+
+- **LoCoMo**
+
+  - Download `locomo10.json` from  
+    https://github.com/snap-research/locomo/blob/main/data/locomo10.json  
+  - Save it as:
+    - `data/locomo10.json`  
+
+- **HotpotQA**
+
+  - Download the following files from  
+    https://huggingface.co/datasets/BytedTsinghua-SIA/hotpotqa/tree/main  
+    - `eval_400.json`  
+    - `eval_1600.json`  
+    - `eval_3200.json`  
+  - Place them under:
+    - `data/hotpotqa/`  
+      (or pass the exact file you want to evaluate via `--data-path`)
+
+- **RULER**
+
+  - Download the `data` folder from  
+    https://huggingface.co/datasets/lighteval/RULER-131072-Qwen2.5-Instruct/tree/main  
+  - Place it under:
+    - `data/ruler/`  
+
+- **NarrativeQA**
+
+  - Download the `data` folder from  
+    https://huggingface.co/datasets/deepmind/narrativeqa/tree/main  
+  - Place it under:
+    - `data/narrativeqa/`
+
 ### Quick Start
 
 ```bash
 # 1. Prepare datasets
 mkdir -p data
-# Place your datasets in the data/ directory
+# Download the datasets from the links above and place them under data/
+# following the suggested directory structure.
+bash scripts/download_data.sh
 
 # 2. Set environment variables
 export OPENAI_API_KEY="your_api_key_here"
 
 # 3. Run evaluations
+
 # HotpotQA
-bash scripts/eval_hotpotqa.sh --data-path data/hotpotqa.json
+# (adjust --data-path according to which split you want to use, e.g. data/hotpotqa/eval_400.json)
+bash scripts/eval_hotpotqa.sh
 
 # NarrativeQA
-bash scripts/eval_narrativeqa.sh --data-path narrativeqa --max-samples 100
+bash scripts/eval_narrativeqa.sh
 
 # LoCoMo
-bash scripts/eval_locomo.sh --data-path data/locomo.json
+bash scripts/eval_locomo.sh
 
 # RULER
-bash scripts/eval_ruler.sh --data-path data/ruler.jsonl --dataset-name niah_single_1
-
-# Or run all evaluations
-bash scripts/eval_all.sh
+bash scripts/eval_ruler.sh
 ```
 
-### Using Python CLI
+### Using Python Directly
+
+You can also run the evaluation scripts directly:
 
 ```bash
-python -m eval.run \
-    --dataset hotpotqa \
-    --data-path data/hotpotqa.json \
-    --generator openai \
-    --model gpt-4 \
-    --retriever dense \
-    --max-samples 100
+# HotpotQA
+python eval/hotpotqa_test.py \
+    --data data/hotpotqa/eval_400.json \
+    --outdir ./results/hotpotqa \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
+
+# NarrativeQA
+python eval/narrativeqa_test.py \
+    --data-dir data/narrativeqa \
+    --split test \
+    --outdir ./results/narrativeqa \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
+
+# LoCoMo
+python eval/locomo_test.py \
+    --data data/locomo10.json \
+    --outdir ./results/locomo \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini
+
+# RULER
+python eval/ruler_test.py \
+    --data data/ruler/qa_1.jsonl \
+    --outdir ./results/ruler/qa_1 \
+    --memory-api-key $OPENAI_API_KEY \
+    --memory-model gpt-4o-mini \
+    --research-api-key $OPENAI_API_KEY \
+    --research-model gpt-4o-mini \
+    --working-api-key $OPENAI_API_KEY \
+    --working-model gpt-4o-mini \
+    --embedding-model-path BAAI/bge-m3
 ```
-
-### Documentation
-
-For complete evaluation documentation:
-- [eval/README.md](./eval/README.md) - Evaluation framework guide
-- [eval/QUICKSTART.md](./eval/QUICKSTART.md) - Quick start guide
 
 ### Supported Datasets
 
-| Dataset | Task Type | Metrics | Documentation |
-|---------|-----------|---------|---------------|
-| **HotpotQA** | Multi-hop QA | F1 | [View](./eval/datasets/hotpotqa.py) |
-| **NarrativeQA** | Narrative QA | F1 | [View](./eval/datasets/narrativeqa.py) |
-| **LoCoMo** | Conversation Memory | F1, BLEU-1 | [View](./eval/datasets/locomo.py) |
-| **RULER** | Long Context | Accuracy | [View](./eval/datasets/ruler.py) |
+| Dataset | Task Type | Metrics | Script |
+|---------|-----------|---------|--------|
+| **HotpotQA** | Multi-hop QA | F1 | [eval/hotpotqa_test.py](./eval/hotpotqa_test.py) |
+| **NarrativeQA** | Narrative QA | F1 | [eval/narrativeqa_test.py](./eval/narrativeqa_test.py) |
+| **LoCoMo** | Conversation Memory | F1, BLEU-1 | [eval/locomo_test.py](./eval/locomo_test.py) |
+| **RULER** | Long Context | Accuracy | [eval/ruler_test.py](./eval/ruler_test.py) |
 
 <span id='doc'/>
 
@@ -337,8 +402,7 @@ For complete evaluation documentation:
 More detailed documentation is coming soon 🚀. Check these resources in the meantime:
 
 - [Examples Documentation](./examples/quickstart/README.md) - Usage examples and tutorials
-- [Evaluation Guide](./eval/README.md) - Evaluation framework documentation
-- [Quick Start Guide](./eval/QUICKSTART.md) - Quick start for evaluations
+- [Evaluation Scripts](./eval/) - Direct evaluation scripts for each dataset
 
 <span id='cite'/>
 
