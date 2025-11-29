@@ -237,18 +237,18 @@ def _fallback_char_split(text: str, max_tokens: int) -> List[str]:
 
 def make_prompt(summary: str, question: str) -> str:
     """创建统一的 Prompt（开放问答格式）"""
-    prompt = f"""    You are a careful reading assistant. 
-    Use the given Context. 
-    Answer with ONLY the final answer string; no extra words.
+    prompt = f"""You are a careful reading assistant. 
+Use the given Context. 
+Answer with ONLY the final answer string; no extra words.
 
-    Question:
-    {question}
+Question:
+{question}
 
-    Context:
-    {summary}
+Context:
+{summary}
 
-    Answer:
-    """
+Answer:
+"""
     return prompt
 
 # ========== 答案提取和评估 ==========

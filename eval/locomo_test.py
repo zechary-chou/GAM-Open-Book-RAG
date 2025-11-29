@@ -123,33 +123,33 @@ def safe_json_extract(candidate: Any) -> Optional[Dict[str, Any]]:
         return None
 
 def make_summary_prompt(summary: str, question: str) -> str:
-    return f"""
-    Based on the summary below, write an answer in the form of **a short phrase** for the following question, not a sentence. Answer with exact words from the context whenever possible.
-    For questions that require answering a date or time, strictly follow the format \"15 July 2023\" and provide a specific date whenever possible. For example, if you need to answer \"last year,\" give the specific year of last year rather than just saying \"last year.\" Only provide one year, date, or time, without any extra responses.
-    If the question is about the duration, answer in the form of several years, months, or days.
-   
-    QUESTION:
-    {question}
+    return f"""\
+Based on the summary below, write an answer in the form of **a short phrase** for the following question, not a sentence. Answer with exact words from the context whenever possible.
+For questions that require answering a date or time, strictly follow the format \"15 July 2023\" and provide a specific date whenever possible. For example, if you need to answer \"last year,\" give the specific year of last year rather than just saying \"last year.\" Only provide one year, date, or time, without any extra responses.
+If the question is about the duration, answer in the form of several years, months, or days.
 
-    SUMMARY:
-    {summary}
+QUESTION:
+{question}
 
-    Short answer:
-    """
+SUMMARY:
+{summary}
+
+Short answer:
+"""
 
 def make_summary_prompt_category3(summary: str, question: str) -> str:
-    return f"""
-    Based on the summary below, write an answer in the form of **a short phrase** for the following question, not a sentence.
-    The question may need you to analyze and infer the answer from the summary.
-     
-    QUESTION:
-    {question}
+    return f"""\
+Based on the summary below, write an answer in the form of **a short phrase** for the following question, not a sentence.
+The question may need you to analyze and infer the answer from the summary.
+    
+QUESTION:
+{question}
 
-    SUMMARY:
-    {summary}
+SUMMARY:
+{summary}
 
-    Short answer:
-    """
+Short answer:
+"""
 
 def answer_with_summary(category: Optional[int], summary: str, question: str, generator) -> str:
     """根据category选择不同的prompt"""
