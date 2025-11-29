@@ -42,7 +42,7 @@ def basic_memory_example():
         temperature=0.3,
         max_tokens=256
     )
-    generator = OpenAIGenerator(gen_config.__dict__)
+    generator = OpenAIGenerator.from_config(gen_config)
     
     # 2. 创建存储
     memory_store = InMemoryMemoryStore()
@@ -96,10 +96,11 @@ def research_example(memory_store, page_store):
     gen_config = OpenAIGeneratorConfig(
         model_name="gpt-4o-mini",
         api_key=os.getenv("OPENAI_API_KEY"),
+        base_url="https://api.openai.com/v1",
         temperature=0.3,
         max_tokens=2048
     )
-    generator = OpenAIGenerator(gen_config.__dict__)
+    generator = OpenAIGenerator.from_config(gen_config)
     
     # 2. 创建多个检索器
     retrievers = {}
