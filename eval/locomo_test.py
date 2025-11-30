@@ -59,8 +59,8 @@ def extract_sessions(conv_obj: Dict[str, Any]) -> List[Tuple[int, str, List[Dict
             continue
         original_idx = int(m.group(1))
         idx = original_idx - 1
-        ts = conv_obj.get(f"session_{idx}_date_time", "")
-        ssum = conv_obj.get(f"session_{idx}_summary", None)
+        ts = conv_obj.get(f"session_{original_idx}_date_time", "")
+        ssum = conv_obj.get(f"session_{original_idx}_summary", None)
         sessions.append((idx, ts, v, ssum if isinstance(ssum, str) and ssum.strip() else None))
     sessions.sort(key=lambda x: x[0])
     return sessions
