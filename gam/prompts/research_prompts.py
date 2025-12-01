@@ -124,7 +124,7 @@ RULES:
 - Do NOT include meta language (e.g. "the evidence says", "according to RESULT", "the model stated").
 - Do NOT include instructions, reasoning steps, or analysis of your own process.
 - Do NOT include any keys other than "content" and "sources".
-- "sources" should on incluede the page_ids of the pages that supported the included facts.
+- "sources" should only include the page_ids of the pages that supported the included facts.
 
 THINKING STEP
 - Before producing the output, think about selection and synthesis steps inside <think>...</think>.
@@ -164,7 +164,7 @@ EVALUATION PROCEDURE:
    - For each required piece, check whether RESULT already provides that information clearly and specifically.
    - RESULT must be specific enough that someone could now write a final answer directly from it without needing further retrieval.
 3. Decide completeness:
-   - "enough" = true  ONLY IF RESULT covers all required pieces with sufficient clarity and specificity.
+   - "enough" = true ONLY IF RESULT covers all required pieces with sufficient clarity and specificity.
    - "enough" = false otherwise.
 
 THINKING STEP
@@ -174,7 +174,7 @@ THINKING STEP
 
 OUTPUT REQUIREMENTS:
 Return ONE JSON object with EXACTLY this key:
-- "enough": boolean. true if RESULT is sufficient to answer REQUEST fully; false otherwise.
+- "enough": Boolean. true if RESULT is sufficient to answer REQUEST fully; false otherwise.
 
 RULES:
 - Do NOT invent facts.
