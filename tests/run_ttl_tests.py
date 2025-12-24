@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import time
 import importlib.util
+from dotenv import load_dotenv
 
 # Direct module loading without going through __init__.py
 def load_module(module_name, file_path):
@@ -20,7 +21,9 @@ def load_module(module_name, file_path):
     return module
 
 # Get base path
-base_path = '/home/zsheriff/my-dev/Nuha_tool_context_framework/clone_gam/general-agentic-memory/gam/schemas'
+load_dotenv()
+root = os.getenv("ROOT")
+base_path = f"{root}/gam/schemas"
 
 # Load modules directly
 print("Loading TTL modules...")
