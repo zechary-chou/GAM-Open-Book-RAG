@@ -29,7 +29,7 @@ class VLLMGenerator(AbsGenerator):
         self.max_tokens = config.get("max_tokens", 512)
         self.thread_count = config.get("thread_count")
         self.system_prompt = config.get("system_prompt")
-        self.timeout = config.get("timeout", 60.0)
+        self.timeout = config.get("timeout", 300.0)
         self.use_schema = config.get("use_schema", False)
 
         # 兼容 openai SDK 的环境变量（可选）

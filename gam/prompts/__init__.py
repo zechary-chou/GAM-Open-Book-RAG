@@ -10,7 +10,7 @@ Available Prompts:
 - research_prompts: Templates for research, reasoning, and scientific inquiry.
 """
 from .memory_prompts import MemoryAgent_PROMPT
-from .research_prompts import Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT
+from .research_prompts import Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT, PlanningConsistencyCorrection_PROMPT, KeywordCorrection_PROMPT, VectorCorrection_PROMPT, PageIndexCorrection_PROMPT
 
 __all__ = [
     "MemoryAgent_PROMPT",
@@ -18,4 +18,8 @@ __all__ = [
     "Integrate_PROMPT",
     "InfoCheck_PROMPT",
     "GenerateRequests_PROMPT",
+    "PlanningConsistencyCorrection_PROMPT",
+    "KeywordCorrection_PROMPT",
+    "VectorCorrection_PROMPT", 
+    "PageIndexCorrection_PROMPT"
 ]

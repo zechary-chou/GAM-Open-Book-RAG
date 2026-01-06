@@ -30,7 +30,57 @@ mkdir -p $base_outputdir
 for dataset in "eval_400"
 do
     echo "Processing dataset: $dataset"
-    outputdir=$base_outputdir/${dataset}
+    # outputdir=$base_outputdir/${dataset}_"qwen2.5-0.5b-consist-2048"
+    outputdir=$base_outputdir/${dataset}_"qwen2.5-0.5b-ct"
+    vllm_url="http://localhost:8000/v1" 
+    ollama_url="http://localhost:11434/v1"
+    model_name="qwen3:4b-instruct"
+
+ ##################### VLLM ######################################
+
+    python3 eval/hotpotqa_test.py \
+        --data ./data/hotpotqa/${dataset}.json \
+        --outdir $outputdir \
+        --start-idx 0 \
+        --end-idx 1 \
+        --max-tokens 2048 \
+        --memory-api-key "$OPENAI_API_KEY" \
+        --memory-base-url "http://0.0.0.0:8000/v1" \
+        --memory-model "qwen2.5-0.5b-local" \
+        --memory-api-type "vllm" \
+        --research-api-key "$OPENAI_API_KEY" \
+        --research-base-url "http://0.0.0.0:8000/v1" \
+        --research-model "qwen2.5-0.5b-local" \
+        --research-api-type "vllm" \
+        --working-api-key "$OPENAI_API_KEY" \
+        --working-base-url "http://0.0.0.0:8000/v1" \
+        --working-model "qwen2.5-0.5b-local" \
+        --working-api-type "vllm" \
+        --embedding-model-path BAAI/bge-m3
+
+    ############### OLLAMA ########################
+
+    # python3 eval/hotpotqa_test.py \
+    #     --data ./data/hotpotqa/${dataset}.json \
+    #     --outdir $outputdir \
+    #     --start-idx 0 \
+    #     --end-idx 15 \
+    #     --max-tokens 2048 \
+    #     --memory-api-key "$OPENAI_API_KEY" \
+    #     --memory-base-url "$ollama_url" \
+    #     --memory-model "$model_name" \
+    #     --memory-api-type "vllm" \
+    #     --research-api-key "$OPENAI_API_KEY" \
+    #     --research-base-url $ollama_url \
+    #     --research-model "$model_name" \
+    #     --research-api-type "vllm" \
+    #     --working-api-key "$OPENAI_API_KEY" \
+    #     --working-base-url "$ollama_url" \
+    #     --working-model "$model_name" \
+    #     --working-api-type "vllm" \
+    #     --embedding-model-path BAAI/bge-m3
+
+    ####################### OPENAI #########################################
 
     # python3 eval/hotpotqa_test.py \
     #     --data ./data/hotpotqa/${dataset}.json \
@@ -50,22 +100,33 @@ do
     #     --working-model "gpt-4o-mini" \
     #     --working-api-type "openai" \
     #     --embedding-model-path BAAI/bge-m3
-    python3 eval/hotpotqa_test.py \
-        --data ./data/hotpotqa/${dataset}.json \
-        --outdir $outputdir \
-        --start-idx 0 \
-        --max-tokens 2048 \
-        --memory-api-key "$OPENAI_API_KEY" \
-        --memory-base-url "http://0.0.0.0:8000/v1" \
-        --memory-model "Qwen/Qwen2.5-1.5B-Instruct" \
-        --memory-api-type "vllm" \
-        --research-api-key "$OPENAI_API_KEY" \
-        --research-base-url "http://0.0.0.0:8000/v1" \
-        --research-model "Qwen/Qwen2.5-1.5B-Instruct" \
-        --research-api-type "vllm" \
-        --working-api-key "$OPENAI_API_KEY" \
-        --working-base-url "http://0.0.0.0:8000/v1" \
-        --working-model "Qwen/Qwen2.5-1.5B-Instruct" \
-        --working-api-type "vllm" \
-        --embedding-model-path BAAI/bge-m3
+
+   
+
+
+    ######################### GEMINI API KEY ########################################
+
+    # python3 eval/hotpotqa_test.py \
+    #     --data ./data/hotpotqa/${dataset}.json \
+    #     --outdir $outputdir \
+    #     --start-idx 0 \
+    #     --max-tokens 2048 \
+    #     --memory-api-key "$OPENAI_API_KEY" \
+    #     --memory-base-url "https://generativelanguage.googleapis.com/v1beta/openai/" \
+    #     --memory-model "gemma-3-1b-it" \
+    #     --memory-api-type "openai" \
+    #     --research-api-key "$OPENAI_API_KEY" \
+    #     --research-base-url "https://generativelanguage.googleapis.com/v1beta/openai/" \
+    #     --research-model "gemma-3-1b-it" \
+    #     --research-api-type "openai" \
+    #     --working-api-key "$OPENAI_API_KEY" \
+    #     --working-base-url "https://generativelanguage.googleapis.com/v1beta/openai/" \
+    #     --working-model "gemma-3-1b-it" \
+    #     --working-api-type "openai" \
+    #     --embedding-model-path BAAI/bge-m3
+
+
+   
+
+       
 done

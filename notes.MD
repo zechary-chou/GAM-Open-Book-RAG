@@ -1,0 +1,13 @@
+# 12/24 Notes
+- Running model locally notes
+    - Got the thing running on vllm. Running Qwen2.5-1.5B can take ~4-5 hours for 56K HotPotQA. 224K and 448K will definitely take longer, especially with bigger models
+    - replicated gpt 4o mini HotpotQA 56K results for $3.5 LOL
+- Benchmark Problems
+    - Notable diminishing returns when increase depth, not many multi-steps needed. maybe this benchmark (hotpotqa) not great for theorem abstraction
+    - It appears that RULER and LoCoMo may be a better benchmark for multihop (need to keep track of variables across steps)
+    - may be better target for theorem abstraction
+- GAM subcomponent sensitivity/perf
+    - Memorizer works great even with smaller model (not bad with 0.5b)
+    - Researcher gets catastrophically bad at sizes < 7B (3b,1.5b, 0.5b qwen2.5 models aren't great) 
+- Question
+    - How does it work if memory agent has less context capacity/LIMIT than the benchmark? For example, ChatGPT-4o-mini has context window of 128K LIMIT but HotpotQA has 224K and 448K window tests

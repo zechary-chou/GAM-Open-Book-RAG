@@ -19,12 +19,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 import json
 
-from gam.prompts import Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT
+from gam.prompts import Planning_PROMPT, Integrate_PROMPT, InfoCheck_PROMPT, GenerateRequests_PROMPT, KeywordCorrection_PROMPT, VectorCorrection_PROMPT, PageIndexCorrection_PROMPT, PlanningConsistencyCorrection_PROMPT
 from gam.schemas import (
     MemoryState, SearchPlan, Hit, Result, 
     ReflectionDecision, ResearchOutput, MemoryStore, PageStore, Retriever, 
     ToolRegistry, InMemoryMemoryStore,
-    PLANNING_SCHEMA, INTEGRATE_SCHEMA, INFO_CHECK_SCHEMA, GENERATE_REQUESTS_SCHEMA
+    PLANNING_SCHEMA, INTEGRATE_SCHEMA, INFO_CHECK_SCHEMA, GENERATE_REQUESTS_SCHEMA, KEYWORD_COLLECTION_SCHEMA, VECTOR_QUERIES_SCHEMA, PAGE_INDEX_SCHEMA
 )
 from gam.generator import AbsGenerator
 
@@ -179,13 +179,103 @@ class ResearchAgent:
         try:
             response = self.generator.generate_single(prompt=prompt, schema=PLANNING_SCHEMA)
             data = response.get("json") or json.loads(response["text"])
+
+            def get_correction_prompt_schema(tool, errorMsg, data):
+                if tool == "keyword":
+                    return KeywordCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    ), KEYWORD_COLLECTION_SCHEMA
+                elif tool == "vector":
+                    return VectorCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    ), VECTOR_QUERIES_SCHEMA
+                elif tool == "page_index":
+                    return PageIndexCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    ), PAGE_INDEX_SCHEMA
+                else:
+                    return PlanningConsistencyCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    )
+
+            # Initialize output variables
+            info_needs = data.get("info_needs", [])
+            tools = data.get("tools", [])
+            keyword_collection = data.get("keyword_collection", [])
+            vector_queries = data.get("vector_queries", [])
+            page_index = data.get("page_index", [])
+
+            retry = 1
+            max_retries = 10
+            errors = []
+            while retry <= max_retries:
+                # Build current output dict for consistency check
+                current_output = {
+                    "info_needs": info_needs,
+                    "tools": tools,
+                    "keyword_collection": keyword_collection,
+                    "vector_queries": vector_queries,
+                    "page_index": page_index
+                }
+                errors = self._plan_consistency_check(current_output)
+                if not errors:
+                    break
+                print(f"[ERROR]: {len(errors)} error(s) in planning output (Retry {retry}):")
+                for tool, errorMsg in errors:
+                    print(f"  - Tool: {tool} | Message: {errorMsg}")
+                # Try to fix all errors in one retry
+                for tool, errorMsg in errors:
+                    correction_prompt, correction_schema = get_correction_prompt_schema(tool, errorMsg, current_output)
+                    # print(f"[DEBUG] Using schema for tool '{tool}': {correction_schema}")
+                    if system_prompt:
+                        prompt = f"User Instructions: {system_prompt}\n\n System Prompt: {correction_prompt}"
+                    else:
+                        prompt = correction_prompt
+                    response = self.generator.generate_single(prompt=prompt, schema=correction_schema)
+                    correction = response.get("json") or json.loads(response["text"])
+                    # Only update the relevant variable
+                    if tool == "keyword":
+                        keyword_collection = correction.get("keyword_collection", keyword_collection)
+                        tools = correction.get("tools", tools)
+                    elif tool == "vector":
+                        vector_queries = correction.get("vector_queries", vector_queries)
+                        tools = correction.get("tools", tools)
+                    elif tool == "page_index":
+                        page_index = correction.get("page_index", page_index)
+                        tools = correction.get("tools", tools)
+                retry += 1
+
+            # If still errors after max_retries, discard the problematic tools
+            if errors:
+                print(f"[WARNING]: Discarding tools after {max_retries} retries: {[tool for tool, _ in errors]}")
+                for tool, _ in errors:
+                    if tool in tools:
+                        tools = [t for t in tools if t != tool]
+                    if tool == "keyword":
+                        keyword_collection = []
+                    elif tool == "vector":
+                        vector_queries = []
+                    elif tool == "page_index":
+                        page_index = []
+
             return SearchPlan(
-                info_needs=data.get("info_needs", []),
-                tools=data.get("tools", []),
-                # keyword_collection=[request],
-                keyword_collection=data.get("keyword_collection", []),
-                vector_queries=data.get("vector_queries", []),
-                page_index=data.get("page_index", [])
+                info_needs=info_needs,
+                tools=tools,
+                keyword_collection=keyword_collection,
+                vector_queries=vector_queries,
+                page_index=page_index
             )
         except Exception as e:
             print(f"Error in planning: {e}")
@@ -196,7 +286,29 @@ class ResearchAgent:
                 vector_queries=[],
                 page_index=[]
             )
-    
+        
+    def _plan_consistency_check(self, data: dict) -> list:
+        """
+        Checks for consistency errors in the planning output.
+        Returns a list of (tool, errorMsg) for each tool with an error.
+        """
+        errors = []
+        valid_tools = {"keyword", "vector", "page_index"}
+        tools = data.get("tools", [])
+        # Check for invalid tools
+        for t in tools:
+            if t not in valid_tools:
+                errors.append((t, f"Found invalid tool '{t}' in tools output list. Only keyword, vector, or page_index are allowed."))
+        page_index = data.get("page_index", [])
+        keyword_collection = data.get("keyword_collection", [])
+        vector_queries = data.get("vector_queries", [])
+        if "page_index" in tools and len(page_index) == 0:
+            errors.append(("page_index", "Found page_index in tools output list, but found no page indices in page_index."))
+        if "keyword" in tools and len(keyword_collection) == 0:
+            errors.append(("keyword", "Found keyword in tools output list, but found no keywords in keyword_collection."))
+        if "vector" in tools and len(vector_queries) == 0:
+            errors.append(("vector", "Found vector in tools output list, but found no queries in vector_queries."))
+        return errors
 
     def _search(
         self, 
@@ -245,7 +357,9 @@ class ResearchAgent:
                     
             elif tool == "page_index":
                 if plan.page_index:
+                    
                     page_results = self._search_by_page_index(plan.page_index)
+
                     # Flatten the results if they come as List[List[Hit]]
                     if page_results and isinstance(page_results[0], list):
                         for result_list in page_results:

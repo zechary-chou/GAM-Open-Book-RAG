@@ -33,5 +33,5 @@ class VLLMGeneratorConfig:
     max_tokens: int = 300
     thread_count: Optional[int] = None
     system_prompt: Optional[str] = None
-    timeout: float = 60.0
+    timeout: float = 300.0
     use_schema: bool = False

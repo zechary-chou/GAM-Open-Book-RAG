@@ -1,3 +1,94 @@
+
+
+KeywordCorrection_PROMPT = """
+You are the PlanningAgent. Your last output had a mistake in the keyword tool output.
+
+QUESTION:
+{request}
+
+PREVIOUS OUTPUT:
+{previous_output}
+
+ERROR:
+{error_description}
+
+Your task: You MUST update the "keyword_collection" field. It must contain correct, high-signal keywords or phrases that should appear in the text. Do NOT use sentences or split words. Do NOT leave "keyword_collection" empty if "keyword" is in "tools". If no keywords are needed, remove "keyword" from "tools" and set "keyword_collection" to [].
+
+You MUST NOT skip updating "keyword_collection". If you do not update it, your output will be rejected.
+
+Do NOT change any other outputs (info_needs, vector_queries, page_index) unless the error says they are wrong. All other fields must stay exactly the same as before.
+
+Return ONE JSON object with these keys:
+- "info_needs": list of strings
+- "tools": list of strings (only "keyword", "vector", "page_index")
+- "keyword_collection": list of strings
+- "vector_queries": list of strings
+- "page_index": list of integers (max 5)
+
+After your correction, return ONLY the JSON object. Do NOT include any explanation or comments.
+"""
+
+
+
+VectorCorrection_PROMPT = """
+You are the PlanningAgent. Your last output had a mistake in the vector tool output.
+
+QUESTION:
+{request}
+
+PREVIOUS OUTPUT:
+{previous_output}
+
+ERROR:
+{error_description}
+
+Your task: You MUST update the "vector_queries" field. It must contain correct, short natural-language questions or queries about the meaning. Each item should be a full question or query, not split into words or fragments. Do NOT leave "vector_queries" empty if "vector" is in "tools". If no queries are needed, remove "vector" from "tools" and set "vector_queries" to [].
+
+You MUST NOT skip updating "vector_queries". If you do not update it, your output will be rejected.
+
+Do NOT change any other outputs (info_needs, keyword_collection, page_index) unless the error says they are wrong. All other fields must stay exactly the same as before.
+
+Return ONE JSON object with these keys:
+- "info_needs": list of strings
+- "tools": list of strings (only "keyword", "vector", "page_index")
+- "keyword_collection": list of strings
+- "vector_queries": list of strings
+- "page_index": list of integers (max 5)
+
+After your correction, return ONLY the JSON object. Do NOT include any explanation or comments.
+"""
+
+
+PageIndexCorrection_PROMPT = """
+You are the PlanningAgent. Your last output had a mistake in the page_index tool output.
+
+QUESTION:
+{request}
+
+MEMORY:
+{memory}
+
+PREVIOUS OUTPUT:
+{previous_output}
+
+ERROR:
+{error_description}
+
+Your task: Only fix the page_index tool outputs. This means:
+- Update "page_index" so it contains only valid page numbers from MEMORY. Do NOT guess or invent page numbers. Maximum 5 items.
+- Make sure "page_index" is present in "tools" only if "page_index" is not empty. Remove "page_index" from "tools" if no page numbers are needed.
+- Do NOT change any other outputs (info_needs, keyword_collection, vector_queries) unless the error says they are wrong.
+- All other fields must stay exactly the same as before.
+
+Return ONE JSON object with these keys:
+- "info_needs": list of strings
+- "tools": list of strings (only "keyword", "vector", "page_index")
+- "keyword_collection": list of strings
+- "vector_queries": list of strings
+- "page_index": list of integers (max 5)
+
+After your correction, return ONLY the JSON object. Do NOT include any explanation or comments.
+"""
 Planning_PROMPT = """
 You are the PlanningAgent. Your job is to generate a concrete retrieval plan for how to gather information needed to answer the QUESTION.
 You must use the QUESTION and the current MEMORY (which contains abstracts of all messages so far).
@@ -59,6 +150,13 @@ RULES
 - Do NOT invent tools. Only use "keyword", "vector", "page_index".
 - Do NOT invent page indices. If you are not sure about a page index, return [].
 - You are only planning retrieval. Do NOT answer the QUESTION here.
+
+CONSISTENCY CHECKLIST
+- Only fill 'keyword_collection' if 'keyword' is in 'tools'.
+- Only fill 'vector_queries' if 'vector' is in 'tools'.
+- Only fill 'page_index' if 'page_index' is in 'tools' and you have at least one valid page index directly from MEMORY. If you do not know any valid page indices from MEMORY, do NOT include 'page_index' in 'tools' and set 'page_index': []. Never invent or guess page indices.
+- If a tool is not in 'tools', its output list must be [].
+- Do not include a tool in 'tools' if its output list would be empty.
 
 THINKING STEP
 - Before producing the output, think through the procedure and choices inside <think>...</think>.
@@ -225,4 +323,52 @@ RULES:
 - Do NOT answer REQUEST yourself.
 - Do NOT invent facts that are not asked by REQUEST.
 After the <think> section, return ONLY the JSON object.
+"""
+
+
+
+PlanningConsistencyCorrection_PROMPT = """
+You are the PlanningAgent. Your last output had a mistake.
+
+QUESTION:
+{request}
+
+MEMORY:
+{memory}
+
+PREVIOUS OUTPUT:
+{previous_output}
+
+ERROR:
+{error_description}
+
+Your job is to fix ONLY the outputs that the error says need to be changed. Do NOT change any other outputs (for example, do NOT change the research questions or info_needs unless the error says they are wrong). The output for info_needs must be exactly the same as before unless the error says to change it. Each item in info_needs must be a full question or statement, not split into separate words. For example, output ["What is an apple?"] not ["What", "is", "an", "apple"]. Keep everything else exactly the same unless the error requires a change for consistency.
+
+How to correct:
+- Read the QUESTION and MEMORY.
+- Look at the PREVIOUS OUTPUT and the error.
+- Write what information is needed to answer the QUESTION.
+- Choose which tools to use: "keyword" (for exact words), "vector" (for meaning), "page_index" (for page numbers from MEMORY).
+- For each tool, give queries or page numbers for that tool.
+
+Tool instructions:
+- "keyword": Write short keywords or phrases that should appear in the text.
+- "vector": Write short questions or queries about the meaning.
+- "page_index": Write page numbers from MEMORY that are important. Do NOT guess page numbers.
+
+Checklist:
+- Only fill 'keyword_collection' if 'keyword' is in 'tools'.
+- Only fill 'vector_queries' if 'vector' is in 'tools'.
+- Only fill 'page_index' if 'page_index' is in 'tools' and you have real page numbers from MEMORY.
+- If a tool is not in 'tools', its output list must be empty ([]).
+- Do not include a tool in 'tools' if its output list would be empty.
+
+Return ONE JSON object with these keys:
+- "info_needs": list of strings
+- "tools": list of strings (only "keyword", "vector", "page_index")
+- "keyword_collection": list of strings
+- "vector_queries": list of strings
+- "page_index": list of integers (max 5)
+
+After your correction, return ONLY the JSON object. Do NOT include any explanation or comments.
 """
