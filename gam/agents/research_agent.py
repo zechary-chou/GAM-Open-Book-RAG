@@ -29,6 +29,7 @@ from gam.schemas import (
 from gam.generator import AbsGenerator
 
 class ResearchAgent:
+        
     """
     Public API:
       - research(request) -> ResearchOutput
@@ -147,7 +148,13 @@ class ResearchAgent:
         self, 
         request: str, 
         memory_state: MemoryState,
-        planning_prompt: Optional[str] = None
+        planning_prompt: Optional[str] = None,
+
+        # NOTE: Toggle consistency features below if you want to test
+        # If enable_consistency_correction is False, tool specific prompts and schemas will not be utilized
+        enable_consistency_correction: bool = False,  # Checking for initial LLM plan consistency
+        use_tool_specific_prompts: bool = True, 
+        use_tool_specific_schemas: bool = True
     ) -> SearchPlan:
         """
         Produce a SearchPlan:
@@ -180,36 +187,6 @@ class ResearchAgent:
             response = self.generator.generate_single(prompt=prompt, schema=PLANNING_SCHEMA)
             data = response.get("json") or json.loads(response["text"])
 
-            def get_correction_prompt_schema(tool, errorMsg, data):
-                if tool == "keyword":
-                    return KeywordCorrection_PROMPT.format(
-                        error_description=errorMsg,
-                        request=request,
-                        memory=memory_context,
-                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
-                    ), KEYWORD_COLLECTION_SCHEMA
-                elif tool == "vector":
-                    return VectorCorrection_PROMPT.format(
-                        error_description=errorMsg,
-                        request=request,
-                        memory=memory_context,
-                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
-                    ), VECTOR_QUERIES_SCHEMA
-                elif tool == "page_index":
-                    return PageIndexCorrection_PROMPT.format(
-                        error_description=errorMsg,
-                        request=request,
-                        memory=memory_context,
-                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
-                    ), PAGE_INDEX_SCHEMA
-                else:
-                    return PlanningConsistencyCorrection_PROMPT.format(
-                        error_description=errorMsg,
-                        request=request,
-                        memory=memory_context,
-                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
-                    )
-
             # Initialize output variables
             info_needs = data.get("info_needs", [])
             tools = data.get("tools", [])
@@ -217,58 +194,16 @@ class ResearchAgent:
             vector_queries = data.get("vector_queries", [])
             page_index = data.get("page_index", [])
 
-            retry = 1
-            max_retries = 10
-            errors = []
-            while retry <= max_retries:
-                # Build current output dict for consistency check
-                current_output = {
-                    "info_needs": info_needs,
-                    "tools": tools,
-                    "keyword_collection": keyword_collection,
-                    "vector_queries": vector_queries,
-                    "page_index": page_index
-                }
-                errors = self._plan_consistency_check(current_output)
-                if not errors:
-                    break
-                print(f"[ERROR]: {len(errors)} error(s) in planning output (Retry {retry}):")
-                for tool, errorMsg in errors:
-                    print(f"  - Tool: {tool} | Message: {errorMsg}")
-                # Try to fix all errors in one retry
-                for tool, errorMsg in errors:
-                    correction_prompt, correction_schema = get_correction_prompt_schema(tool, errorMsg, current_output)
-                    # print(f"[DEBUG] Using schema for tool '{tool}': {correction_schema}")
-                    if system_prompt:
-                        prompt = f"User Instructions: {system_prompt}\n\n System Prompt: {correction_prompt}"
-                    else:
-                        prompt = correction_prompt
-                    response = self.generator.generate_single(prompt=prompt, schema=correction_schema)
-                    correction = response.get("json") or json.loads(response["text"])
-                    # Only update the relevant variable
-                    if tool == "keyword":
-                        keyword_collection = correction.get("keyword_collection", keyword_collection)
-                        tools = correction.get("tools", tools)
-                    elif tool == "vector":
-                        vector_queries = correction.get("vector_queries", vector_queries)
-                        tools = correction.get("tools", tools)
-                    elif tool == "page_index":
-                        page_index = correction.get("page_index", page_index)
-                        tools = correction.get("tools", tools)
-                retry += 1
-
-            # If still errors after max_retries, discard the problematic tools
-            if errors:
-                print(f"[WARNING]: Discarding tools after {max_retries} retries: {[tool for tool, _ in errors]}")
-                for tool, _ in errors:
-                    if tool in tools:
-                        tools = [t for t in tools if t != tool]
-                    if tool == "keyword":
-                        keyword_collection = []
-                    elif tool == "vector":
-                        vector_queries = []
-                    elif tool == "page_index":
-                        page_index = []
+            # Step 1: Modular toggling for plan consistency correction and features
+            # If disabled, use initial LLM output directly
+            if enable_consistency_correction:
+                info_needs, tools, keyword_collection, vector_queries, page_index = self._apply_plan_consistency_correction(
+                    info_needs, tools, keyword_collection, vector_queries, page_index,
+                    memory_context, request, system_prompt,
+                    use_tool_specific_prompts=use_tool_specific_prompts,
+                    use_tool_specific_schemas=use_tool_specific_schemas
+                )
+            
 
             return SearchPlan(
                 info_needs=info_needs,
@@ -286,6 +221,135 @@ class ResearchAgent:
                 vector_queries=[],
                 page_index=[]
             )
+        
+    def _apply_plan_consistency_correction(
+        self,
+        info_needs,
+        tools,
+        keyword_collection,
+        vector_queries,
+        page_index,
+        memory_context,
+        request,
+        system_prompt,
+        use_tool_specific_prompts=True,
+        use_tool_specific_schemas=True
+    ):
+        """
+        Modularized plan consistency correction logic for _planning.
+        Returns corrected (info_needs, tools, keyword_collection, vector_queries, page_index).
+        """
+        def get_correction_prompt_schema(tool, errorMsg, data):
+            # Modular toggling for prompt selection
+            if use_tool_specific_prompts:
+                print("[DEBUG]: using tool specific prompts!")
+                if tool == "keyword":
+                    prompt = KeywordCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    )
+                elif tool == "vector":
+                    prompt = VectorCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    )
+                elif tool == "page_index":
+                    prompt = PageIndexCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    )
+                else:
+                    prompt = PlanningConsistencyCorrection_PROMPT.format(
+                        error_description=errorMsg,
+                        request=request,
+                        memory=memory_context,
+                        previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                    )
+            else:
+                # Use generic planning correction prompt
+                
+                prompt = PlanningConsistencyCorrection_PROMPT.format(
+                    error_description=errorMsg,
+                    request=request,
+                    memory=memory_context,
+                    previous_output=json.dumps(data, ensure_ascii=False, indent=2)
+                )
+
+            # Modular toggling for schema selection
+            if use_tool_specific_schemas:
+                print("[DEBUG]: using tool specific schemas!!")
+                if tool == "keyword":
+                    schema = KEYWORD_COLLECTION_SCHEMA
+                elif tool == "vector":
+                    schema = VECTOR_QUERIES_SCHEMA
+                elif tool == "page_index":
+                    schema = PAGE_INDEX_SCHEMA
+                else:
+                    schema = PLANNING_SCHEMA
+            else:
+                schema = PLANNING_SCHEMA
+            return prompt, schema
+
+
+
+        retry = 1
+        max_retries = 10
+        errors = []
+
+        while retry <= max_retries:
+            current_output = {
+                "info_needs": info_needs,
+                "tools": tools,
+                "keyword_collection": keyword_collection,
+                "vector_queries": vector_queries,
+                "page_index": page_index
+            }
+            errors = self._plan_consistency_check(current_output)
+            if not errors:
+                break
+            print(f"[DEBUG]: {len(errors)} consistency error(s) in planning output (Retry {retry}):")
+
+            for tool, errorMsg in errors:
+                print(f"  - Tool: {tool} | Message: {errorMsg}")
+
+            for tool, errorMsg in errors:
+                correction_prompt, correction_schema = get_correction_prompt_schema(tool, errorMsg, current_output)
+                if system_prompt:
+                    prompt = f"User Instructions: {system_prompt}\n\n System Prompt: {correction_prompt}"
+                else:
+                    prompt = correction_prompt
+                response = self.generator.generate_single(prompt=prompt, schema=correction_schema)
+                correction = response.get("json") or json.loads(response["text"])
+
+                if tool == "keyword":
+                    keyword_collection = correction.get("keyword_collection", keyword_collection)
+                    tools = correction.get("tools", tools)
+                elif tool == "vector":
+                    vector_queries = correction.get("vector_queries", vector_queries)
+                    tools = correction.get("tools", tools)
+                elif tool == "page_index":
+                    page_index = correction.get("page_index", page_index)
+                    tools = correction.get("tools", tools)
+            retry += 1
+
+        if errors:
+            print(f"[DEBUG]: Discarding tools after {max_retries} retries: {[tool for tool, _ in errors]}")
+            for tool, _ in errors:
+                if tool in tools:
+                    tools = [t for t in tools if t != tool]
+                if tool == "keyword":
+                    keyword_collection = []
+                elif tool == "vector":
+                    vector_queries = []
+                elif tool == "page_index":
+                    page_index = []
+        return info_needs, tools, keyword_collection, vector_queries, page_index
         
     def _plan_consistency_check(self, data: dict) -> list:
         """

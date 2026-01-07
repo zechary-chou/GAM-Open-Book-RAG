@@ -31,7 +31,7 @@ for dataset in "eval_400"
 do
     echo "Processing dataset: $dataset"
     # outputdir=$base_outputdir/${dataset}_"qwen2.5-0.5b-consist-2048"
-    outputdir=$base_outputdir/${dataset}_"qwen2.5-0.5b-ct"
+    outputdir=$base_outputdir/${dataset}_"qwen2.5-0.5b-512"
     vllm_url="http://localhost:8000/v1" 
     ollama_url="http://localhost:11434/v1"
     model_name="qwen3:4b-instruct"
@@ -42,8 +42,7 @@ do
         --data ./data/hotpotqa/${dataset}.json \
         --outdir $outputdir \
         --start-idx 0 \
-        --end-idx 1 \
-        --max-tokens 2048 \
+        --max-tokens 512 \
         --memory-api-key "$OPENAI_API_KEY" \
         --memory-base-url "http://0.0.0.0:8000/v1" \
         --memory-model "qwen2.5-0.5b-local" \
