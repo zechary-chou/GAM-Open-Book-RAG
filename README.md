@@ -1,3 +1,42 @@
+## 🔬 Fork Notice
+
+> This is a research fork of the *General Agentic Memory (GAM)* framework.
+
+### **TL;DR**
+Explored how small LLMs perform under GAM on the HotpotQA 56K benchmark using local inference (Qwen 0.5B via vLLM/Ollama). Observed tool-use inconsistencies during planning and added consistency checks (reprompting, tool-specific prompts, schemas). This improved structured behavior but increased context load and reduced answer quality for small models.
+
+---
+
+### **Why This Fork**
+Small models are attractive for cost-efficient local inference, but their behavior within the GAM framework was not examined in depth in the original paper. This fork evaluates how retrieval pressure, planning consistency, and backend inference differences affect small-model reasoning and tool-use.
+
+---
+
+### **Key Findings (High Level)**
+- enforcing consistency improved tool behavior
+- consistency led to increased retrieval/context load which harmed final accuracy
+- decreasing chunk size from 2048 → 512 tokens increased performance by ~70% but significantly increased memory build time due to more chunks per sample
+- backend differences (vLLM vs Ollama) affected output budgets & reasoning traces
+
+---
+
+### **What This Fork Focuses On (Technical)**
+This fork explores:
+- HotpotQA 56K with small models (e.g., Qwen 0.5B)
+- tool-selection vs emitted indices inconsistencies
+- planning-phase consistency checks (reprompting + schemas)
+- inference backends (OpenAI API, vLLM, Ollama)
+- backend-specific token accounting differences
+- small-model performance under multi-hop retrieval load
+
+---
+
+> See `/experiments/hotpotQA_56k` for methodology, results, and discussion.
+
+---
+
+*Original README from the upstream GAM project is preserved below for reference.*
+
 # General Agentic Memory (GAM)
 
 <p align="center">
@@ -8,6 +47,8 @@
     <img src="https://img.shields.io/badge/HuggingFace-Paper-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace">
   </a>
 </p>
+
+This is a fork repository
 
 A general memory system for agents, powered by deep-research
 
