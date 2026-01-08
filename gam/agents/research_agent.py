@@ -590,7 +590,7 @@ class ResearchAgent:
             if hit.page_id:
                 sources.append(hit.page_id)
         
-        evidence_context = "\n".join(evidence_text) if evidence_text else "无搜索结果"
+        evidence_context = "\n".join(evidence_text) if evidence_text else "No search results"
         
         system_prompt = self.system_prompts.get("integration")
         template_prompt = Integrate_PROMPT.format(question=question, evidence_context=evidence_context, result=result.content)

@@ -355,6 +355,7 @@ logs/
 runs/
 wandb/
 tensorboard/
+scripts/
 
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/

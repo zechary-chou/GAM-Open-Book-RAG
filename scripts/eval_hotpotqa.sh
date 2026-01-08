@@ -41,7 +41,7 @@ do
     python3 eval/hotpotqa_test.py \
         --data ./data/hotpotqa/${dataset}.json \
         --outdir $outputdir \
-        --start-idx 0 \
+        --start-idx 29 \
         --max-tokens 512 \
         --memory-api-key "$OPENAI_API_KEY" \
         --memory-base-url "http://0.0.0.0:8000/v1" \
