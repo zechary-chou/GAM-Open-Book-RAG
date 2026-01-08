@@ -1,18 +1,23 @@
 ## 🔬 Fork Notice
 
-> This is a research fork of the *General Agentic Memory (GAM)* framework.
+> This is a research fork of the *General Agentic Memory (GAM)* framework. GAM is a memory-augmented agent system that lets LLMs plan, retrieve context, and answer questions with huge contexts.
 
-### **TL;DR**
-Explored how small LLMs perform under GAM on the HotpotQA 56K benchmark using local inference (Qwen 0.5B via vLLM/Ollama). Observed tool-use inconsistencies during planning and added consistency checks (reprompting, tool-specific prompts, schemas). This improved structured behavior but increased context load and reduced answer quality for small models.
+### 📝 TL;DR
+- **Evaluation:** small LLMs under the General Agentic Memory (GAM) framework on HotpotQA 56K
+- **Observation:** tool-use inconsistencies during planning (tool selection vs emitted indices)
+- **Intervention:** added planning-phase consistency checks (reprompting, tool-specific prompts, schemas)
+- **Heuristic Change:** reduced chunk size (2048 → 512) improved F1 scores ~70%
+- **Tradeoff:** smaller chunks sizes drastically increased memory build time due to larger number of chunks required
+- **Outcome:** consistency improved structured tool behavior, but increased retrieval/context load reduced small-model answer quality
 
 ---
 
-### **Why This Fork**
+### 🎯 **Motivation**
 Small models are attractive for cost-efficient local inference, but their behavior within the GAM framework was not examined in depth in the original paper. This fork evaluates how retrieval pressure, planning consistency, and backend inference differences affect small-model reasoning and tool-use.
 
 ---
 
-### **Key Findings (High Level)**
+### 📈 **Key Findings**
 - enforcing consistency improved tool behavior
 - consistency led to increased retrieval/context load which harmed final accuracy
 - decreasing chunk size from 2048 → 512 tokens increased performance by ~70% but significantly increased memory build time due to more chunks per sample
@@ -20,9 +25,9 @@ Small models are attractive for cost-efficient local inference, but their behavi
 
 ---
 
-### **What This Fork Focuses On (Technical)**
+### 🧪 **Focus Areas**
 This fork explores:
-- HotpotQA 56K with small models (e.g., Qwen 0.5B)
+- HotpotQA 56K with small models (e.g., Qwen 2.5 0.5B)
 - tool-selection vs emitted indices inconsistencies
 - planning-phase consistency checks (reprompting + schemas)
 - inference backends (OpenAI API, vLLM, Ollama)
